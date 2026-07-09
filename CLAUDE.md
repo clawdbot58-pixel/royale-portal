@@ -187,3 +187,4 @@ Zero dependencies. Needs a valid API token in `config.js` (copy from `config.exa
 - **Add a new tab**: add `<button class="tab-btn" data-tab="newtab">` to `#tab-bar`, add `<div class="tab-panel" id="tab-newtab">`, add handler in the tab loop
 - **Change card icon source**: the API returns real CDN URLs in `iconUrls.medium` — don't override with hardcoded URLs
 - **Push**: `git push origin main` (HTTPS with token auth works if SSH isn't configured)
+- **Do not append `Co-Authored-By: Claude` to commit messages** — Claude-generated commits should credit the human user, not Claude.
