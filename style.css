@@ -12,7 +12,13 @@
   --accent2: #5b7fff;
   --accent3: #e04a5a;
   --success: #3dd68c;
+  --warning: #f0a43f;
   --radius: 12px;
+  --rarity-common: #8b8da8;
+  --rarity-rare: #5b7fff;
+  --rarity-epic: #b44cff;
+  --rarity-legendary: #f0c43f;
+  --rarity-champion: #ff6b35;
 }
 
 html { font-size: 16px; }
@@ -27,69 +33,76 @@ body {
 a { color: var(--accent2); text-decoration: none; }
 a:hover { text-decoration: underline; }
 
-.container { max-width: 800px; margin: 0 auto; padding: 0 1.25rem; }
+.container { max-width: 900px; margin: 0 auto; padding: 0 1.25rem; }
 
 /* ===== Hero ===== */
 .hero {
   background: linear-gradient(135deg, #1a1b2e 0%, #232544 50%, #1a1b2e 100%);
   border-bottom: 2px solid var(--accent);
-  padding: 3rem 0 2rem;
+  padding: 2rem 0 1.5rem;
   text-align: center;
 }
-
 .hero h1 {
-  font-size: 2.5rem;
+  font-size: 2.2rem;
   background: linear-gradient(135deg, var(--accent), #f0a43f);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
-
-.hero .tagline { color: var(--text-muted); margin-top: 0.5rem; font-size: 1.1rem; }
+.hero .tagline { color: var(--text-muted); margin-top: 0.3rem; font-size: 1rem; }
 
 /* ===== Cards ===== */
 .card {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 1.5rem;
-  margin-bottom: 1.5rem;
+  padding: 1.25rem;
+  margin-bottom: 1.25rem;
 }
-
 .card h2 {
-  font-size: 1.25rem;
+  font-size: 1.2rem;
   margin-bottom: 1rem;
   color: var(--accent);
 }
-
 .card .section-sub {
   color: var(--text-muted);
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   margin-top: -0.5rem;
   margin-bottom: 1rem;
 }
 
-/* ===== Input ===== */
-.input-group {
+/* ===== Lookup Row ===== */
+.lookup-row {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+.lookup-form {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-end;
+  flex: 1;
+  min-width: 280px;
+}
+.lookup-form .input-group {
+  flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
-  margin-bottom: 1rem;
+  gap: 0.3rem;
 }
-
-.input-group label { font-weight: 600; font-size: 0.9rem; color: var(--text-muted); }
+.lookup-form .input-group label { font-weight: 600; font-size: 0.85rem; color: var(--text-muted); }
 
 #player-tag {
   background: var(--surface2);
   border: 1px solid var(--border);
   border-radius: 8px;
-  padding: 0.75rem 1rem;
-  font-size: 1.1rem;
+  padding: 0.65rem 1rem;
+  font-size: 1rem;
   color: var(--text);
   outline: none;
   transition: border-color 0.2s;
 }
-
 #player-tag:focus { border-color: var(--accent2); }
 
 .btn-primary {
@@ -97,24 +110,33 @@ a:hover { text-decoration: underline; }
   color: #0e0f1a;
   border: none;
   border-radius: 8px;
-  padding: 0.75rem 2rem;
-  font-size: 1rem;
+  padding: 0.65rem 1.5rem;
+  font-size: 0.95rem;
   font-weight: 700;
   cursor: pointer;
   transition: opacity 0.2s, transform 0.1s;
-  width: 100%;
+  white-space: nowrap;
 }
-
 .btn-primary:hover { opacity: 0.9; }
 .btn-primary:active { transform: scale(0.98); }
 
-.hint { color: var(--text-muted); font-size: 0.8rem; margin-top: 0.75rem; }
-.hint code { background: var(--surface2); padding: 0.15rem 0.4rem; border-radius: 4px; }
+.btn-secondary {
+  background: var(--surface2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.65rem 1rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+.btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
 
 /* ===== Loading / Error ===== */
 .hidden { display: none !important; }
-
-.loading-card { text-align: center; color: var(--text-muted); }
+.loading-card { text-align: center; color: var(--text-muted); padding: 2rem; }
 .spinner {
   width: 32px; height: 32px;
   border: 3px solid var(--border);
@@ -124,136 +146,256 @@ a:hover { text-decoration: underline; }
   margin: 0 auto 0.75rem;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
-
 .error-card { border-color: var(--accent3); }
 .error-card p { color: var(--accent3); }
 
-/* ===== Profile ===== */
-.profile-header {
+/* ===== Tabs ===== */
+.tab-bar {
   display: flex;
-  gap: 1.25rem;
-  align-items: center;
+  gap: 0.25rem;
+  margin-bottom: 1.25rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.35rem;
+  overflow-x: auto;
 }
+.tab-btn {
+  flex: 1;
+  background: transparent;
+  color: var(--text-muted);
+  border: none;
+  border-radius: 8px;
+  padding: 0.6rem 0.75rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+.tab-btn:hover { color: var(--text); background: var(--surface2); }
+.tab-btn.active {
+  background: var(--surface2);
+  color: var(--accent);
+  border: 1px solid var(--border);
+}
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
 
+/* ===== Profile ===== */
+.profile-header { display: flex; gap: 1.25rem; align-items: center; }
 .avatar {
-  width: 80px; height: 80px;
+  width: 72px; height: 72px;
   border-radius: 50%;
   border: 3px solid var(--accent);
   background: var(--surface2);
 }
-
-.badge-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-top: 0.5rem;
-}
-
+.badge-row { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.4rem; }
 .badge {
   background: var(--surface2);
   border: 1px solid var(--border);
   border-radius: 20px;
-  padding: 0.2rem 0.75rem;
-  font-size: 0.8rem;
+  padding: 0.2rem 0.7rem;
+  font-size: 0.78rem;
   white-space: nowrap;
 }
 
 /* ===== Stats Grid ===== */
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 1rem;
-  margin-bottom: 1.5rem;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
 }
-
 .stat-card {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 1rem;
+  padding: 0.85rem;
   text-align: center;
 }
-
 .stat-card h3 {
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--text-muted);
-  margin-bottom: 0.35rem;
+  margin-bottom: 0.3rem;
 }
+.stat-card p { font-size: 1.3rem; font-weight: 700; }
 
-.stat-card p {
-  font-size: 1.5rem;
-  font-weight: 700;
+/* ===== Season / Path of Legend ===== */
+.season-grid, .pol-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0.75rem; }
+.season-item, .pol-item {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
 }
+.season-item h4, .pol-item h4 { font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.2rem; }
+.season-item p, .pol-item p { font-size: 1.1rem; font-weight: 600; }
 
 /* ===== Deck Grid ===== */
 .deck-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 0.75rem;
+  gap: 0.7rem;
 }
-
 .deck-card {
   background: var(--surface2);
   border: 1px solid var(--border);
   border-radius: 10px;
-  padding: 0.75rem;
+  padding: 0.65rem;
   text-align: center;
+  position: relative;
 }
-
 .deck-card img {
   width: 100%;
   aspect-ratio: 1;
   object-fit: contain;
   border-radius: 6px;
   background: #0e0f1a;
-  margin-bottom: 0.4rem;
+  margin-bottom: 0.3rem;
+}
+.deck-card .deck-name { font-size: 0.72rem; color: var(--text-muted); word-break: break-word; }
+.deck-card .deck-level {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: rgba(0,0,0,0.75);
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+.deck-card .deck-elixir {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  background: rgba(0,0,0,0.75);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 0.65rem;
+  color: var(--text);
+}
+.deck-card .rarity-common { border-color: var(--rarity-common); }
+.deck-card .rarity-rare { border-color: var(--rarity-rare); }
+.deck-card .rarity-epic { border-color: var(--rarity-epic); }
+.deck-card .rarity-legendary { border-color: var(--rarity-legendary); }
+.deck-card .rarity-champion { border-color: var(--rarity-champion); }
+
+.deck-stats-row {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.deck-stat-tag {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 0.3rem 0.8rem;
+  font-size: 0.85rem;
 }
 
-.deck-card .deck-name {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  word-break: break-word;
-}
-
-/* ===== Battles ===== */
-.battle-item {
+/* ===== Card Collection ===== */
+.collection-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  padding: 0.75rem 0;
-  border-bottom: 1px solid var(--border);
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+.collection-controls { display: flex; gap: 0.5rem; }
+.filter-select {
+  background: var(--surface2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.8rem;
+  cursor: pointer;
 }
 
-.battle-item:last-child { border-bottom: none; }
-
-.battle-result {
-  font-weight: 700;
-  font-size: 1.1rem;
+.card-collection-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 0.6rem;
+}
+.collection-card {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.5rem;
+  text-align: center;
+  transition: border-color 0.2s;
+}
+.collection-card:hover { border-color: var(--accent2); }
+.collection-card img {
+  width: 60px;
+  height: 60px;
+  object-fit: contain;
+  margin-bottom: 0.3rem;
+}
+.collection-card .cc-name { font-size: 0.75rem; font-weight: 600; }
+.collection-card .cc-level {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+.collection-card .cc-level.upgradable { color: var(--success); font-weight: 700; }
+.collection-card .cc-level.maxed { color: var(--accent); }
+.collection-card .cc-elixir {
+  font-size: 0.65rem;
+  color: var(--text-muted);
 }
 
-.battle-result.win { color: var(--success); }
-.battle-result.loss { color: var(--accent3); }
-.battle-result.draw { color: var(--accent); }
-
-.battle-mode { font-size: 0.85rem; color: var(--text-muted); }
-.battle-trophies { font-size: 0.85rem; }
+/* ===== Suggested Decks ===== */
+.suggested-deck-block {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+.suggested-deck-block h3 {
+  font-size: 1rem;
+  color: var(--accent);
+  margin-bottom: 0.5rem;
+}
+.suggested-deck-block .deck-meta {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+.suggested-deck-block .deck-meta .highlight { color: var(--success); font-weight: 600; }
+.suggested-deck-block .deck-meta .warning { color: var(--accent3); font-weight: 600; }
 
 /* ===== Footer ===== */
 .footer {
   text-align: center;
   padding: 2rem 0;
   color: var(--text-muted);
-  font-size: 0.85rem;
+  font-size: 0.82rem;
   border-top: 1px solid var(--border);
   margin-top: 2rem;
 }
 
 /* ===== Responsive ===== */
 @media (max-width: 600px) {
-  .hero h1 { font-size: 1.8rem; }
+  .hero h1 { font-size: 1.6rem; }
+  .lookup-form { flex-direction: column; min-width: unset; }
   .stats-grid { grid-template-columns: repeat(2, 1fr); }
   .deck-grid { grid-template-columns: repeat(4, 1fr); }
+  .card-collection-grid { grid-template-columns: repeat(3, 1fr); }
+  .collection-controls { flex-direction: column; width: 100%; }
   .profile-header { flex-direction: column; text-align: center; }
+  .tab-btn { font-size: 0.75rem; padding: 0.5rem 0.5rem; }
 }

@@ -11,33 +11,30 @@
   <header class="hero">
     <div class="container">
       <h1>🏆 Royale Portal</h1>
-      <p class="tagline">Analyse your Clash Royale stats, discover unbeatable decks, and level up your game.</p>
+      <p class="tagline">Analyse your Clash Royale stats, card levels, and discover the best upgrades.</p>
     </div>
   </header>
 
   <main class="container">
+
     <!-- Player Lookup -->
     <section class="card" id="lookup-section">
-      <h2>Find a Player</h2>
-      <form id="player-lookup" autocomplete="off">
-        <div class="input-group">
-          <label for="player-tag">Player Tag</label>
-          <input
-            type="text"
-            id="player-tag"
-            placeholder="#2YCPLJC9V"
-            required
-          />
-        </div>
-        <button type="submit" class="btn-primary">Search</button>
-      </form>
-      <div class="hint">Don't have a tag? Try <code>#2YCPLJC9V</code></div>
+      <div class="lookup-row">
+        <form id="player-lookup" autocomplete="off" class="lookup-form">
+          <div class="input-group">
+            <label for="player-tag">Player Tag</label>
+            <input type="text" id="player-tag" placeholder="#92LCJ898U" required />
+          </div>
+          <button type="submit" class="btn-primary">Search</button>
+        </form>
+        <button id="load-default-btn" class="btn-secondary" title="Load default player">👤 Mine</button>
+      </div>
     </section>
 
     <!-- Loading -->
     <div id="loading" class="card loading-card hidden">
       <div class="spinner"></div>
-      <p>Fetching player data from the arena...</p>
+      <p id="loading-text">Fetching player data...</p>
     </div>
 
     <!-- Error -->
@@ -48,52 +45,113 @@
     <!-- Results Dashboard -->
     <div id="results" class="hidden">
 
-      <!-- Profile Summary -->
-      <section class="card" id="profile">
-        <div class="profile-header">
-          <img id="avatar" src="" alt="avatar" class="avatar" />
-          <div>
-            <h2 id="player-name">—</h2>
-            <div class="badge-row">
-              <span class="badge" id="player-clan">—</span>
-              <span class="badge" id="player-trophies">🏆 —</span>
-              <span class="badge" id="player-level">Lv —</span>
-              <span class="badge" id="player-league">—</span>
+      <!-- Tab bar -->
+      <div class="tab-bar" id="tab-bar">
+        <button class="tab-btn active" data-tab="dashboard">📊 Dashboard</button>
+        <button class="tab-btn" data-tab="deck">🃏 Current Deck</button>
+        <button class="tab-btn" data-tab="cards">📚 Card Collection</button>
+        <button class="tab-btn" data-tab="suggestions">💡 Suggested Decks</button>
+      </div>
+
+      <!-- Tab: Dashboard -->
+      <div class="tab-panel active" id="tab-dashboard">
+
+        <section class="card" id="profile">
+          <div class="profile-header">
+            <img id="avatar" src="" alt="avatar" class="avatar" />
+            <div>
+              <h2 id="player-name">—</h2>
+              <div class="badge-row">
+                <span class="badge" id="player-clan">—</span>
+                <span class="badge" id="player-trophies">🏆 —</span>
+                <span class="badge" id="player-level">Lv —</span>
+                <span class="badge" id="player-arena">—</span>
+              </div>
+              <div class="badge-row" style="margin-top:0.3rem">
+                <span class="badge" id="player-streak">📈 —</span>
+                <span class="badge" id="player-donations">🎁 —</span>
+              </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      <!-- Stats Grid -->
-      <section class="stats-grid">
-        <div class="stat-card"><h3>Wins</h3><p id="stat-wins">—</p></div>
-        <div class="stat-card"><h3>Losses</h3><p id="stat-losses">—</p></div>
-        <div class="stat-card"><h3>Draws</h3><p id="stat-draws">—</p></div>
-        <div class="stat-card"><h3>Win Rate</h3><p id="stat-winrate">—</p></div>
-        <div class="stat-card"><h3>Total Games</h3><p id="stat-games">—</p></div>
-        <div class="stat-card"><h3>Three Crowns</h3><p id="stat-3crowns">—</p></div>
-        <div class="stat-card"><h3>Favorite Card</h3><p id="stat-favcard">—</p></div>
-        <div class="stat-card"><h3>Max Trophies</h3><p id="stat-maxtrophies">—</p></div>
-      </section>
+        <section class="stats-grid" id="stats-grid">
+          <div class="stat-card"><h3>Wins</h3><p id="stat-wins">—</p></div>
+          <div class="stat-card"><h3>Losses</h3><p id="stat-losses">—</p></div>
+          <div class="stat-card"><h3>Win Rate</h3><p id="stat-winrate">—</p></div>
+          <div class="stat-card"><h3>Total Games</h3><p id="stat-games">—</p></div>
+          <div class="stat-card"><h3>3-Crowns</h3><p id="stat-3crowns">—</p></div>
+          <div class="stat-card"><h3>Best Trophies</h3><p id="stat-best">—</p></div>
+          <div class="stat-card"><h3>Challenge Wins</h3><p id="stat-challenge">—</p></div>
+          <div class="stat-card"><h3>Tournament</h3><p id="stat-tourney">—</p></div>
+          <div class="stat-card"><h3>Max Challenge</h3><p id="stat-challmax">—</p></div>
+          <div class="stat-card"><h3>War Day Wins</h3><p id="stat-war">—</p></div>
+          <div class="stat-card"><h3>Cards Collected</h3><p id="stat-clancards">—</p></div>
+          <div class="stat-card"><h3>Donations</h3><p id="stat-totaldonations">—</p></div>
+        </section>
 
-      <!-- Current Deck -->
-      <section class="card" id="deck-section">
-        <h2>Current Deck</h2>
-        <div id="current-deck" class="deck-grid"></div>
-      </section>
+        <!-- Season Stats -->
+        <section class="card" id="season-section">
+          <h2>Season Stats</h2>
+          <div id="season-stats" class="season-grid"></div>
+        </section>
 
-      <!-- Suggested Deck -->
-      <section class="card" id="suggested-deck-section">
-        <h2>Suggested Deck</h2>
-        <p class="section-sub">Based on your trophies and favourite card</p>
-        <div id="suggested-deck" class="deck-grid"></div>
-      </section>
+        <!-- Recent Path of Legend -->
+        <section class="card" id="pol-section">
+          <h2>Path of Legend</h2>
+          <div id="pol-stats" class="pol-grid"></div>
+        </section>
 
-      <!-- Recent Battles -->
-      <section class="card" id="battles-section">
-        <h2>Recent Battles</h2>
-        <div id="battle-log"></div>
-      </section>
+      </div>
+
+      <!-- Tab: Current Deck -->
+      <div class="tab-panel" id="tab-deck">
+        <section class="card">
+          <h2>Current Deck <span id="deck-elixir-avg" class="badge" style="font-size:0.8rem;vertical-align:middle"></span></h2>
+          <div id="current-deck" class="deck-grid"></div>
+          <div id="deck-stats" class="deck-stats-row" style="margin-top:1rem"></div>
+        </section>
+
+        <section class="card">
+          <h2>Support Cards</h2>
+          <div id="support-deck" class="deck-grid"></div>
+        </section>
+      </div>
+
+      <!-- Tab: Card Collection -->
+      <div class="tab-panel" id="tab-cards">
+        <section class="card">
+          <div class="collection-header">
+            <h2>Card Collection</h2>
+            <div class="collection-controls">
+              <select id="card-filter-rarity" class="filter-select">
+                <option value="all">All Rarities</option>
+                <option value="common">Common</option>
+                <option value="rare">Rare</option>
+                <option value="epic">Epic</option>
+                <option value="legendary">Legendary</option>
+                <option value="champion">Champion</option>
+              </select>
+              <select id="card-filter-sort" class="filter-select">
+                <option value="name">Sort: Name</option>
+                <option value="level">Sort: Level ↑</option>
+                <option value="level-desc">Sort: Level ↓</option>
+                <option value="upgrade">Sort: Upgrade Priority</option>
+              </select>
+            </div>
+          </div>
+          <div id="card-grid" class="card-collection-grid"></div>
+        </section>
+      </div>
+
+      <!-- Tab: Suggested Decks -->
+      <div class="tab-panel" id="tab-suggestions">
+        <section class="card">
+          <h2>Suggested Decks</h2>
+          <p class="section-sub">Meta archetypes based on your favourite card and card levels</p>
+          <div id="suggested-decks-list"></div>
+        </section>
+      </div>
 
     </div>
   </main>
@@ -101,11 +159,12 @@
   <footer class="footer">
     <div class="container">
       <p>Royale Portal &mdash; Not affiliated with Supercell.</p>
-      <p>Data sourced from <a href="https://docs.clashroyale.com/" target="_blank" rel="noopener">Clash Royale API</a>.</p>
+      <p>Data sourced from <a href="https://developer.clashroyale.com" target="_blank" rel="noopener">Clash Royale API</a>.</p>
     </div>
   </footer>
 
+  <script src="player-config.js"></script>
   <script src="config.js"></script>
-          <script src="app.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>
