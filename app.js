@@ -1,556 +1,530 @@
 /* =====================================================
-   app.js — Royale Portal
-   Uses the Clash Royale Developer API with a private
-   API token from config.js.
+   app.js — Royale Portal (Card Collection)
    ===================================================== */
 
-// --------------- Constants ---------------
-const API_BASE = typeof CLASH_ROYALE_API_TOKEN !== "undefined"
-  ? "https://api.clashroyale.com/v1"
-  : null;
+var API_ROOT = "/api";
 
-const RARITY_COLORS = {
-  common: "#8b8da8", rare: "#5b7fff", epic: "#b44cff",
-  legendary: "#f0c43f", champion: "#ff6b35",
+var RARITY_COLORS = {
+  common:    "#4A90D9",
+  rare:      "#E07800",
+  epic:      "#C040C0",
+  legendary: "#F0C43F",
+  champion:  "#FFD700",
 };
-const RARITY_MAX = {
-  common: 16, rare: 14, epic: 11, legendary: 9, champion: 6,
-};
+var RARITY_ORDER = ["common", "rare", "epic", "legendary", "champion"];
+
+// Cards-array helper: picks the right CARDS_* global by rarity name
+function getCardsArray(rarity) {
+  var r = (rarity || "").toLowerCase();
+  if (r === "common")    return typeof CARDS_COMMON    !== "undefined" ? CARDS_COMMON    : null;
+  if (r === "rare")      return typeof CARDS_RARE      !== "undefined" ? CARDS_RARE      : null;
+  if (r === "epic")      return typeof CARDS_EPIC      !== "undefined" ? CARDS_EPIC      : null;
+  if (r === "legendary") return typeof CARDS_LEGENDARY !== "undefined" ? CARDS_LEGENDARY : null;
+  if (r === "champion")  return typeof CARDS_CHAMPION  !== "undefined" ? CARDS_CHAMPION  : null;
+  return null;
+}
 
 // --------------- State ---------------
-let allCardsDb = {};        // name -> { id, name, elixirCost, rarity, iconUrls, maxLevel }
-let playerCardsMap = {};    // name -> { level, maxLevel, ... }
-let currentPlayerData = null;
-let currentFavCard = "";
-let currentPlayerTag = "";
+var allCardsDb  = {};
+var mergedCards = [];
+var currentPlayerTag = "";
+var selectedRarities = new Set();  // empty = show all
+
+// Image URL overrides for cards whose API CDN URLs are broken/missing
+var CARD_IMG_OVERRIDES = {
+  "ronin": "https://cdns3.royaleapi.com/cdn-cgi/image/w=150,h=180,format=auto/static/img/cards/v10-9f6caa5e/ronin.png",
+};
 
 // --------------- DOM refs ---------------
-const lookupForm = document.getElementById("player-lookup");
-const tagInput = document.getElementById("player-tag");
-const loadDefaultBtn = document.getElementById("load-default-btn");
-const loadingEl = document.getElementById("loading");
-const loadingText = document.getElementById("loading-text");
-const errorEl = document.getElementById("error");
-const errorMsg = document.getElementById("error-message");
-const resultsEl = document.getElementById("results");
-
-// Tab system
-const tabBtns = document.querySelectorAll(".tab-btn");
-const tabPanels = {
-  dashboard: document.getElementById("tab-dashboard"),
-  deck: document.getElementById("tab-deck"),
-  cards: document.getElementById("tab-cards"),
-  suggestions: document.getElementById("tab-suggestions"),
-};
-
-// Dashboard
-const avatarEl = document.getElementById("avatar");
-const playerNameEl = document.getElementById("player-name");
-const playerClanEl = document.getElementById("player-clan");
-const playerTrophiesEl = document.getElementById("player-trophies");
-const playerLevelEl = document.getElementById("player-level");
-const playerArenaEl = document.getElementById("player-arena");
-const playerStreakEl = document.getElementById("player-streak");
-const playerDonationsEl = document.getElementById("player-donations");
-
-const statEls = {
-  wins: document.getElementById("stat-wins"),
-  losses: document.getElementById("stat-losses"),
-  winrate: document.getElementById("stat-winrate"),
-  games: document.getElementById("stat-games"),
-  threeCrowns: document.getElementById("stat-3crowns"),
-  best: document.getElementById("stat-best"),
-  challenge: document.getElementById("stat-challenge"),
-  tourney: document.getElementById("stat-tourney"),
-  challmax: document.getElementById("stat-challmax"),
-  war: document.getElementById("stat-war"),
-  clancards: document.getElementById("stat-clancards"),
-  totaldonations: document.getElementById("stat-totaldonations"),
-};
-const seasonSection = document.getElementById("season-stats");
-const polSection = document.getElementById("pol-stats");
-
-// Deck tab
-const currentDeckEl = document.getElementById("current-deck");
-const supportDeckEl = document.getElementById("support-deck");
-const deckElixirAvg = document.getElementById("deck-elixir-avg");
-const deckStatsEl = document.getElementById("deck-stats");
-
-// Cards tab
-const cardGridEl = document.getElementById("card-grid");
-const cardFilterRarity = document.getElementById("card-filter-rarity");
-const cardFilterSort = document.getElementById("card-filter-sort");
-
-// Suggested decks tab
-const suggestedDecksList = document.getElementById("suggested-decks-list");
+var lookupForm  = document.getElementById("lookup-form");
+var tagInput    = document.getElementById("tag-input");
+var mineBtn     = document.getElementById("mine-btn");
+var loadingEl   = document.getElementById("loading");
+var loadingText = document.getElementById("loading-text");
+var errorEl     = document.getElementById("error");
+var errorMsg    = document.getElementById("error-msg");
+var contentEl   = document.getElementById("content");
+var playerBar   = document.getElementById("player-bar");
+var pnameEl     = document.getElementById("pname");
+var ptagEl      = document.getElementById("ptag");
+var pstatsEl    = document.getElementById("pstats");
+var cacheStatus = document.getElementById("cache-status");
+var cardGrid    = document.getElementById("card-grid");
+var sortSelect   = document.getElementById("sort-select");
+var searchInput  = document.getElementById("search-input");
+var countLabel   = document.getElementById("count-label");
+var msBtn       = document.getElementById("rarity-btn");
+var msDropdown  = document.getElementById("rarity-dropdown");
 
 // --------------- Init ---------------
-tagInput.value = DEFAULT_PLAYER_TAG || "";
-currentPlayerTag = DEFAULT_PLAYER_TAG || "";
-
-// --------------- Tab system ---------------
-tabBtns.forEach((btn) => {
-  btn.addEventListener("click", () => {
-    tabBtns.forEach((b) => b.classList.remove("active"));
-    btn.classList.add("active");
-    Object.entries(tabPanels).forEach(([key, panel]) => {
-      panel.classList.toggle("active", key === btn.dataset.tab);
-    });
-  });
-});
+if (typeof DEFAULT_PLAYER_TAG !== "undefined" && DEFAULT_PLAYER_TAG) {
+  tagInput.value = DEFAULT_PLAYER_TAG;
+}
 
 // --------------- Helpers ---------------
 function setLoading(msg) {
-  loadingText.textContent = msg || "Fetching data...";
+  loadingText.textContent = msg || "Loading…";
   loadingEl.classList.remove("hidden");
   errorEl.classList.add("hidden");
-  resultsEl.classList.add("hidden");
+  contentEl.classList.add("hidden");
 }
 function showError(msg) {
   loadingEl.classList.add("hidden");
   errorEl.classList.remove("hidden");
   errorMsg.textContent = msg;
 }
-function showResults() {
+function showContent() {
   loadingEl.classList.add("hidden");
   errorEl.classList.add("hidden");
-  resultsEl.classList.remove("hidden");
+  contentEl.classList.remove("hidden");
 }
 function sanitizeTag(tag) {
-  const cleaned = tag.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
-  return cleaned ? `#${cleaned}` : null;
+  var c = tag.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+  return c ? "#" + c : null;
 }
-
-function rarityColor(rarity) {
-  return RARITY_COLORS[rarity?.toLowerCase()] || "#8b8da8";
+function rarityColor(r) {
+  return RARITY_COLORS[(r || "").toLowerCase()] || "#8b8da8";
 }
-
-// --------------- API calls ---------------
-async function apiFetch(path) {
-  if (!API_BASE || !CLASH_ROYALE_API_TOKEN) {
-    throw new Error("API token not configured. Add your token to config.js.");
+function proxyImg(url, cardName) {
+  if (!url) return "";
+  // Check for image overrides (cards with broken API CDN URLs)
+  if (cardName && CARD_IMG_OVERRIDES[cardName.toLowerCase()]) {
+    return CARD_IMG_OVERRIDES[cardName.toLowerCase()];
   }
-  const url = `${API_BASE}${path}`;
-  const resp = await fetch(url, {
-    headers: {
-      Accept: "application/json",
-      Authorization: `Bearer ${CLASH_ROYALE_API_TOKEN}`,
-    },
-  });
+  // Standard CR API CDN → proxy through our server for caching
+  if (url.indexOf("api-assets.clashroyale.com") !== -1) {
+    return url.replace("https://api-assets.clashroyale.com/", "/img/");
+  }
+  // Other CDNs (RoyaleAPI, etc.) — use directly
+  return url;
+}
+
+function fmt(n) {
+  if (n == null || isNaN(n)) return "—";
+  return n.toLocaleString();
+}
+
+// --------------- Debug ---------------
+var debugLog = [];
+function debug(msg, data) {
+  var entry = "[" + new Date().toISOString().slice(11,19) + "] " + msg;
+  debugLog.push(entry + (data ? " " + JSON.stringify(data) : ""));
+  console.log("🔧", entry, data || "");
+}
+function debugDump() { return debugLog.join("\n"); }
+
+// --------------- API ---------------
+async function apiFetch(path) {
+  if (location.protocol === "file:") {
+    throw new Error("Run: cd ~/Documents/royal-portal && python3 serve.py\nThen open http://localhost:8080/");
+  }
+  var resp;
+  try {
+    resp = await fetch(API_ROOT + path, { headers: { Accept: "application/json" } });
+  } catch (e) {
+    throw new Error("Network error — is serve.py running? (" + e.message + ")");
+  }
   if (!resp.ok) {
-    if (resp.status === 404) throw new Error("Not found");
-    if (resp.status === 403) throw new Error("API key rejected or rate-limited. Check config.js.");
-    throw new Error(`API error (${resp.status})`);
+    if (resp.status === 404) throw new Error("Player not found. Check the tag.");
+    if (resp.status === 403) throw new Error("API key rejected or rate-limited.");
+    throw new Error("API error " + resp.status);
   }
   return resp.json();
 }
 
 async function fetchCards() {
-  if (Object.keys(allCardsDb).length > 0) return; // already cached
-  const data = await apiFetch("/cards");
-  data.items.forEach((c) => {
-    const name = c.name.trim();
+  if (Object.keys(allCardsDb).length) return;
+  var data = await apiFetch("/cards");
+
+  function addCard(c, type) {
+    var name = c.name.trim();
     allCardsDb[name] = {
-      id: c.id,
-      name,
-      elixirCost: c.elixirCost ?? "?",
+      id: c.id, name: name,
+      elixirCost: c.elixirCost != null ? c.elixirCost : "—",
       rarity: c.rarity,
       iconUrls: c.iconUrls || {},
-      maxLevel: c.maxLevel || RARITY_MAX[c.rarity?.toLowerCase()] || 14,
+      maxLevel: c.maxLevel || (typeof MAX_LEVELS !== "undefined" ? (MAX_LEVELS[(c.rarity || "").toLowerCase()] || 14) : 14),
+      maxEvolutionLevel: c.maxEvolutionLevel,
+      hasEvo: !!(c.iconUrls && c.iconUrls.evolutionMedium),
+      hasHero: !!(c.iconUrls && c.iconUrls.heroMedium),
+      type: type,
     };
-  });
+  }
+
+  data.items.forEach(function(c) { addCard(c, "card"); });
+  (data.supportItems || []).forEach(function(c) { addCard(c, "tower"); });
+
+  debug("cards DB loaded", {count: Object.keys(allCardsDb).length});
 }
 
 async function fetchPlayer(tag) {
-  const clean = sanitizeTag(tag);
+  var clean = sanitizeTag(tag);
   if (!clean) throw new Error("Invalid player tag");
-  return apiFetch(`/players/${encodeURIComponent(clean)}`);
+  return apiFetch("/players/" + encodeURIComponent(clean));
 }
 
-// --------------- Main data load ---------------
-async function loadPlayer(tag) {
-  setLoading("Fetching player data...");
-  try {
-    await fetchCards(); // ensure card DB is loaded
-    setLoading("Loading player stats...");
-    const data = await fetchPlayer(tag);
-    currentPlayerData = data;
-    currentPlayerTag = sanitizeTag(tag) || tag;
+// --------------- Merge ---------------
+function buildMergedCards(playerData) {
+  var owned = {};
+  (playerData.cards || []).forEach(function(c) {
+    owned[c.name.trim()] = c;
+  });
+  // Tower troops come from supportCards, not cards
+  (playerData.supportCards || []).forEach(function(c) {
+    owned[c.name.trim()] = c;
+  });
 
-    // Build player cards map
-    playerCardsMap = {};
-    (data.cards || []).forEach((c) => {
-      playerCardsMap[c.name.trim()] = c;
+  mergedCards = [];
+  Object.keys(allCardsDb).forEach(function(name) {
+    var db = allCardsDb[name];
+    var pc = owned[name] || {};
+    var rarity = (pc.rarity || db.rarity || "").toLowerCase();
+    var isTower = db.type === "tower";
+
+    // All cards use MAX_LEVELS from card-data.js (game-level max)
+    var maxLv = (typeof MAX_LEVELS !== "undefined" && MAX_LEVELS[rarity])
+      ? MAX_LEVELS[rarity]
+      : (db.maxLevel || pc.maxLevel || 14);
+
+    // All cards use the same API→game level conversion
+    var apiLv = pc.level || 0;
+    var startLv = (typeof START_LEVELS !== "undefined" && START_LEVELS[rarity])
+      ? START_LEVELS[rarity]
+      : 1;
+    var gameLv = (apiLv > 0) ? (apiLv + startLv - 1) : 0;
+
+    // Debug raw vs transformed for first few cards
+    if (Object.keys(mergedCards).length < 6) {
+      debug("card:" + name, {apiLv: apiLv, gameLv: gameLv, maxLv: maxLv, rarity: rarity, isTower: isTower});
+    }
+
+    mergedCards.push({
+      id: db.id,
+      name: db.name,
+      elixirCost: pc.elixirCost != null ? pc.elixirCost : (db.elixirCost != null ? db.elixirCost : "?"),
+      rarity: rarity,
+      iconUrls: pc.iconUrls || db.iconUrls || {},
+      level: gameLv,       // game level for display
+      lvApi: apiLv,
+      maxLevel: maxLv,
+      count: pc.count != null ? pc.count : 0,
+      owned: !!pc.level,
+      type: db.type || "card",
     });
-    currentFavCard = data.currentFavouriteCard?.name || "";
+  });
+}
 
-    renderDashboard(data);
-    renderDeckTab(data);
-    renderCardCollection(data);
-    renderSuggestedDecks(data);
+// --------------- Sum remaining cards/gold to max ---------------
+// Arrays: arr[N] = incremental cards to reach level N from N-1
+function cardsToMax(card) {
+  var arr = getCardsArray(card.rarity);
+  if (!arr || card.level >= card.maxLevel) return 0;
+  var sum = 0;
+  for (var i = card.level + 1; i <= card.maxLevel && i < arr.length; i++) {
+    sum += arr[i] || 0;
+  }
+  return sum;
+}
 
-    showResults();
-    // Reset to dashboard tab
-    document.querySelector('.tab-btn[data-tab="dashboard"]')?.click();
+function goldToMax(card) {
+  if (typeof GOLD_PER_LEVEL === "undefined") return 0;
+  if (card.level >= card.maxLevel) return 0;
+  var sum = 0;
+  for (var i = card.level + 1; i <= card.maxLevel && i < GOLD_PER_LEVEL.length; i++) {
+    sum += GOLD_PER_LEVEL[i] || 0;
+  }
+  return sum;
+}
+
+// --------------- Next level cost ---------------
+// Returns incremental cards needed for upgrade to next level
+function cardsForNext(card) {
+  var arr = getCardsArray(card.rarity);
+  var target = card.level + 1;
+  if (!arr || card.level >= card.maxLevel || target >= arr.length) return null;
+  return arr[target] || null;
+}
+
+function goldForNext(card) {
+  if (typeof GOLD_PER_LEVEL === "undefined") return null;
+  var target = card.level + 1;
+  if (card.level >= card.maxLevel || target >= GOLD_PER_LEVEL.length) return null;
+  return GOLD_PER_LEVEL[target] || null;
+}
+
+// (Variant detection removed — evo/hero badges no longer displayed)
+
+// --------------- Main load ---------------
+async function loadPlayer(tag) {
+  debugLog.length = 0;
+  debug("loadPlayer", {tag: tag});
+  setLoading("Loading…");
+
+  try {
+    await fetchCards();
+    setLoading("Loading cards…");
+    var data = await fetchPlayer(tag);
+    debug("player ok", {name: data.name});
+
+    currentPlayerTag = sanitizeTag(tag) || tag;
+    buildMergedCards(data);
+
+    pnameEl.textContent = data.name || "—";
+    ptagEl.textContent = currentPlayerTag;
+    var total = mergedCards.length;
+    var owned = 0;
+    mergedCards.forEach(function(c) { if (c.owned) owned++; });
+    pstatsEl.textContent = owned + " / " + total + " cards · Lv " + (data.expLevel || "?");
+    playerBar.classList.remove("hidden");
+
+    renderCards();
+    debugLevels();
+    showContent();
+    cacheStatus.classList.add("hidden");
+    debug("done");
   } catch (err) {
-    showError(err.message);
+    debug("ERROR", {msg: err.message});
+    console.error(debugDump());
+    showError(err.message + "\n\n—— debug ——\n" + debugDump());
   }
 }
 
-// --------------- Dashboard ---------------
-function renderDashboard(data) {
-  // Profile
-  playerNameEl.textContent = data.name || "—";
-  if (data.clan) {
-    playerClanEl.textContent = `🏰 ${data.clan.name}`;
-  } else {
-    playerClanEl.textContent = "No clan";
-  }
-  playerTrophiesEl.textContent = `🏆 ${data.trophies?.toLocaleString() ?? "—"}`;
-  playerLevelEl.textContent = `Lv ${data.expLevel ?? "—"}`;
-  playerArenaEl.textContent = data.arena?.name || "—";
-
-  if (avatarEl && data.iconUrls?.medium) {
-    avatarEl.src = data.iconUrls.medium;
-  }
-
-  // Streak
-  const streak = data.currentWinLoseStreak;
-  if (streak != null) {
-    const icon = streak > 0 ? "🔥" : streak < 0 ? "💀" : "➖";
-    playerStreakEl.textContent = `${icon} ${streak > 0 ? "+" : ""}${streak}`;
-  } else {
-    playerStreakEl.textContent = "📈 —";
-  }
-  playerDonationsEl.textContent = `🎁 ${(data.donations ?? 0).toLocaleString()} / ${(data.donationsReceived ?? 0).toLocaleString()}`;
-
-  // Stats
-  const wins = data.wins ?? 0;
-  const losses = data.losses ?? 0;
-  const total = data.battleCount ?? (wins + losses);
-  const winrate = total > 0 ? ((wins / total) * 100).toFixed(1) + "%" : "—";
-
-  statEls.wins.textContent = wins.toLocaleString();
-  statEls.losses.textContent = losses.toLocaleString();
-  statEls.winrate.textContent = winrate;
-  statEls.games.textContent = total.toLocaleString();
-  statEls.threeCrowns.textContent = (data.threeCrownWins ?? 0).toLocaleString();
-  statEls.best.textContent = (data.bestTrophies ?? 0).toLocaleString();
-  statEls.challenge.textContent = (data.challengeCardsWon ?? 0).toLocaleString();
-  statEls.tourney.textContent = (data.tournamentCardsWon ?? 0).toLocaleString();
-  statEls.challmax.textContent = (data.challengeMaxWins ?? "—").toString();
-  statEls.war.textContent = (data.warDayWins ?? 0).toString();
-  statEls.clancards.textContent = (data.clanCardsCollected ?? 0).toLocaleString();
-  statEls.totaldonations.textContent = (data.totalDonations ?? 0).toLocaleString();
-
-  // Season stats
-  renderSeasonStats(data);
-
-  // Path of Legend
-  renderPolStats(data);
-}
-
-function renderSeasonStats(data) {
-  seasonSection.innerHTML = "";
-  const ls = data.leagueStatistics || {};
-  const seasons = [
-    { label: "Current Season", s: ls.currentSeason },
-    { label: "Previous Season", s: ls.previousSeason },
-    { label: "Best Season", s: ls.bestSeason },
-  ];
-  seasons.forEach(({ label, s }) => {
-    if (!s) return;
-    const div = document.createElement("div");
-    div.className = "season-item";
-    div.innerHTML = `
-      <h4>${label}</h4>
-      <p>Trophies: ${(s.bestTrophies ?? s.trophies ?? "—").toLocaleString()}</p>
-    `;
-    seasonSection.appendChild(div);
+// --------------- Level Debug ---------------
+function debugLevels() {
+  console.log("═══════════════════════════════════════════════");
+  console.log("  LEVEL DEBUG — all cards");
+  console.log("  gameLv=displayed  apiLv=raw  max=gameMax  *=maxed  ~=unowned");
+  console.log("═══════════════════════════════════════════════");
+  var mismatches = [];
+  mergedCards.forEach(function(c, i) {
+    var tag = "";
+    if (!c.owned) tag += "~";
+    else if (c.level >= c.maxLevel) tag += "*";
+    var line = (i+1) + ". " + pad(c.name, 22) + " gameLv=" + c.level + tag + " apiLv=" + c.lvApi + " max=" + c.maxLevel + " " + c.rarity;
+    console.log("  " + line);
+    if (c.level > c.maxLevel) mismatches.push(c.name + " lv=" + c.level + " > max=" + c.maxLevel);
   });
-}
-
-function renderPolStats(data) {
-  polSection.innerHTML = "";
-  const pols = [
-    { label: "Current Season", s: data.currentPathOfLegendSeasonResult },
-    { label: "Previous Season", s: data.lastPathOfLegendSeasonResult },
-    { label: "Best Season", s: data.bestPathOfLegendSeasonResult },
-  ];
-  let hasAny = false;
-  pols.forEach(({ label, s }) => {
-    if (!s) return;
-    hasAny = true;
-    const div = document.createElement("div");
-    div.className = "pol-item";
-    const rank = s.rank ?? s.leagueNumber ?? "—";
-    const trophies = s.trophies ?? "—";
-    div.innerHTML = `
-      <h4>${label}</h4>
-      <p>Rank: ${rank}${trophies !== "—" ? ` | ${trophies} trophies` : ""}</p>
-    `;
-    polSection.appendChild(div);
-  });
-  if (!hasAny) {
-    polSection.innerHTML = '<div class="pol-item"><p style="color:var(--text-muted)">No Path of Legend data</p></div>';
+  if (mismatches.length) {
+    console.log("  ⚠ Cards where lv > maxLv:", mismatches.length);
+    mismatches.forEach(function(m) { console.log("    " + m); });
   }
+  // Show all unique rarities in the dataset
+  var rarities = {};
+  mergedCards.forEach(function(c) { rarities[c.rarity] = (rarities[c.rarity] || 0) + 1; });
+  var rarStr = Object.keys(rarities).sort().map(function(r) { return r + "=" + rarities[r]; }).join(", ");
+  console.log("  RARITIES IN DATA: " + rarStr);
+  console.log("  MAX_LEVELS: " + (typeof MAX_LEVELS !== "undefined" ? JSON.stringify(MAX_LEVELS) : "UNDEFINED"));
+  console.log("  START_LEVELS: " + (typeof START_LEVELS !== "undefined" ? JSON.stringify(START_LEVELS) : "UNDEFINED"));
+  console.log("═══════════════════════════════════════════════");
+  debug("level dump complete", {total: mergedCards.length, maxed: mergedCards.filter(function(c){return c.owned && c.level>=c.maxLevel;}).length});
 }
 
-// --------------- Deck Tab ---------------
-function renderDeckTab(data) {
-  const deck = data.currentDeck || [];
-  renderDeckCards(deck, currentDeckEl, true);
+function pad(s, n) { while (s.length < n) s += " "; return s; }
 
-  // Elixir average
-  const costs = deck.map((c) => c.elixirCost ?? null).filter((v) => v !== null && v !== "?");
-  const avg = costs.length > 0 ? (costs.reduce((a, b) => a + b, 0) / costs.length).toFixed(1) : "—";
-  deckElixirAvg.textContent = `⚡ Avg: ${avg}`;
+// --------------- Render ---------------
+function renderCards() {
+  var sort  = sortSelect ? sortSelect.value : "level";
+  var query = searchInput ? searchInput.value.toLowerCase().trim() : "";
 
-  // Deck stats breakdown
-  const rarities = {};
-  deck.forEach((c) => {
-    const r = (c.rarity || "?").toLowerCase();
-    rarities[r] = (rarities[r] || 0) + 1;
-  });
-  deckStatsEl.innerHTML = Object.entries(rarities)
-    .map(([r, n]) => `<span class="deck-stat-tag" style="color:${rarityColor(r)}">${n} ${r}</span>`)
-    .join("");
+  var cards = mergedCards.slice();
 
-  // Support cards
-  const supports = data.currentDeckSupportCards || data.supportCards || [];
-  renderDeckCards(supports, supportDeckEl, true);
-  if (supports.length === 0) {
-    supportDeckEl.innerHTML = '<p style="color:var(--text-muted)">No support cards</p>';
+  // Filter by selected rarities (empty set = show all)
+  // "tower" in selectedRarities filters by card type, not rarity
+  if (selectedRarities.size > 0) {
+    var showTower = selectedRarities.has("tower");
+    cards = cards.filter(function(c) {
+      if (c.type === "tower") return showTower;
+      return selectedRarities.has(c.rarity);
+    });
   }
-}
 
-function renderDeckCards(cards, container, showMeta) {
-  container.innerHTML = "";
-  if (!cards || cards.length === 0) {
-    container.innerHTML = '<p style="color:var(--text-muted);grid-column:1/-1">No cards</p>';
-    return;
-  }
-  cards.forEach((card) => {
-    const div = document.createElement("div");
-    const rarity = (card.rarity || "").toLowerCase();
-    div.className = `deck-card rarity-${rarity}`;
-
-    const icon = card.iconUrls?.medium || "";
-    const name = card.name;
-    const level = card.level ?? "?";
-    const elixir = card.elixirCost ?? "?";
-    const maxLv = card.maxLevel ?? RARITY_MAX[rarity] ?? "?";
-
-    div.innerHTML = `
-      ${showMeta && elixir !== "?" ? `<span class="deck-elixir">⚡${elixir}</span>` : ""}
-      ${showMeta && level !== "?" ? `<span class="deck-level" style="color:${rarityColor(rarity)}">${level}</span>` : ""}
-      <img src="${icon}" alt="${name}" loading="lazy"
-           onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 40 40%22><rect fill=%22%23232544%22 width=%2240%22 height=%2240%22/><text x=%2220%22 y=%2220%22 text-anchor=%22middle%22 fill=%22%238b8da8%22 font-size=%2210%22>?</text></svg>'"
-      />
-      <div class="deck-name">${name}</div>
-      ${showMeta && maxLv !== "?" ? `<div class="cc-level" style="font-size:0.65rem;color:var(--text-muted)">${level}/${maxLv}</div>` : ""}
-    `;
-    container.appendChild(div);
-  });
-}
-
-// --------------- Card Collection ---------------
-function renderCardCollection(data) {
-  const cards = data.cards || [];
-  renderFilteredCards(cards);
-
-  // Wire up filter/sort
-  function update() { renderFilteredCards(cards); }
-  cardFilterRarity.onchange = update;
-  cardFilterSort.onchange = update;
-}
-
-function renderFilteredCards(cards) {
-  const rarity = cardFilterRarity.value;
-  const sort = cardFilterSort.value;
-
-  let filtered = cards;
-  if (rarity !== "all") {
-    filtered = filtered.filter((c) => c.rarity?.toLowerCase() === rarity);
+  // Filter by search
+  if (query) {
+    cards = cards.filter(function(c) { return c.name.toLowerCase().indexOf(query) !== -1; });
   }
 
   // Sort
-  filtered = [...filtered].sort((a, b) => {
-    switch (sort) {
-      case "level": return (a.level ?? 0) - (b.level ?? 0);
-      case "level-desc": return (b.level ?? 0) - (a.level ?? 0);
-      case "upgrade": return calcUpgradePriority(a) - calcUpgradePriority(b);
-      default: return a.name.localeCompare(b.name);
-    }
-  });
-
-  cardGridEl.innerHTML = "";
-  filtered.forEach((card) => {
-    const div = document.createElement("div");
-    div.className = "collection-card";
-
-    const rarity = (card.rarity || "").toLowerCase();
-    const lv = card.level ?? 0;
-    const maxLv = card.maxLevel ?? RARITY_MAX[rarity] ?? 0;
-    const elixir = card.elixirCost ?? "?";
-    const icon = card.iconUrls?.medium || "";
-    const canUpgrade = lv < maxLv;
-    const pct = maxLv > 0 ? Math.round((lv / maxLv) * 100) : 0;
-
-    div.style.borderLeft = `3px solid ${rarityColor(rarity)}`;
-    div.innerHTML = `
-      <img src="${icon}" alt="${card.name}" loading="lazy"
-           onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 40 40%22><rect fill=%22%23232544%22 width=%2240%22 height=%2240%22/><text x=%2220%22 y=%2220%22 text-anchor=%22middle%22 fill=%22%238b8da8%22 font-size=%2210%22>?</text></svg>'"
-      />
-      <div class="cc-name">${card.name}</div>
-      <div class="cc-level ${canUpgrade ? "upgradable" : "maxed"}">Lv ${lv}/${maxLv} ${canUpgrade ? "⬆" : "★"}</div>
-      <div class="cc-elixir">⚡${elixir} · ${card.rarity}</div>
-      <div class="cc-progress" style="margin-top:4px;background:var(--bg);border-radius:4px;height:4px;overflow:hidden">
-        <div style="height:100%;width:${pct}%;background:${canUpgrade ? rarityColor(rarity) : "var(--accent)"};border-radius:4px"></div>
-      </div>
-    `;
-    cardGridEl.appendChild(div);
-  });
-
-  if (filtered.length === 0) {
-    cardGridEl.innerHTML = '<p style="color:var(--text-muted);grid-column:1/-1;text-align:center;padding:2rem">No cards match this filter.</p>';
-  }
-}
-
-function calcUpgradePriority(card) {
-  // Lower score = higher priority to upgrade
-  const rarity = (card.rarity || "").toLowerCase();
-  const lv = card.level ?? 0;
-  const maxLv = card.maxLevel ?? RARITY_MAX[rarity] ?? 0;
-  if (lv >= maxLv) return 999; // maxed = last
-
-  // Cards closer to max but not yet maxed = higher priority
-  // Also boost meta-relevant cards (we'll do a simple heuristic)
-  return (maxLv - lv) * 10;
-}
-
-// --------------- Suggested Decks ---------------
-const ARCHETYPES = [
-  { name: "Hog Rider Cycle", cards: ["Hog Rider", "Fireball", "Zap", "Musketeer", "Cannon", "Ice Spirit", "Skeleton Army", "The Log"], key: "Hog Rider" },
-  { name: "Golem Beatdown", cards: ["Golem", "Night Witch", "Baby Dragon", "Lumberjack", "Mega Minion", "Tornado", "Zap", "Poison"], key: "Golem" },
-  { name: "X-Bow 2.9", cards: ["X-Bow", "Ice Spirit", "Skeletons", "Fireball", "Tesla", "Archers", "The Log", "Rocket"], key: "X-Bow" },
-  { name: "Log Bait", cards: ["Goblin Barrel", "Princess", "Knight", "Ice Spirit", "Rocket", "The Log", "Goblin Gang", "Tesla"], key: "Goblin Barrel" },
-  { name: "LavaLoon", cards: ["Lava Hound", "Balloon", "Mega Minion", "Tombstone", "Skeleton Army", "Zap", "Fireball", "Minions"], key: "Lava Hound" },
-  { name: "PEKKA Bridge Spam", cards: ["P.E.K.K.A", "Battle Ram", "Bandit", "Magic Archer", "Zap", "Poison", "Royal Ghost", "Miner"], key: "P.E.K.K.A" },
-  { name: "Royal Giant Furnace", cards: ["Royal Giant", "Furnace", "Barbarians", "Lightning", "Ice Spirit", "Mega Minion", "The Log", "Electro Wizard"], key: "Royal Giant" },
-  { name: "Graveyard Freeze", cards: ["Graveyard", "Freeze", "Knight", "Musketeer", "Tornado", "Poison", "Ice Wizard", "Barbarian Barrel"], key: "Graveyard" },
-  { name: "Miner Control", cards: ["Miner", "Wall Breakers", "Skeleton Army", "Fireball", "Zap", "Musketeer", "Cannon", "Ice Spirit"], key: "Miner" },
-  { name: "Giant Double Prince", cards: ["Giant", "Prince", "Dark Prince", "Mega Minion", "Zap", "Fireball", "Mini P.E.K.K.A", "Archers"], key: "Giant" },
-  { name: "Splashyard", cards: ["Graveyard", "Baby Dragon", "Knight", "Ice Wizard", "Tornado", "Poison", "Tombstone", "Barbarian Barrel"], key: "Baby Dragon" },
-  { name: "Three Musketeers", cards: ["Three Musketeers", "Battle Ram", "Elixir Collector", "Ice Golem", "Minion Horde", "Zap", "The Log", "Goblin Gang"], key: "Three Musketeers" },
-  { name: "Mega Knight", cards: ["Mega Knight", "Bandit", "Zap", "Poison", "Bats", "Minion Horde", "Ice Spirit", "The Log"], key: "Mega Knight" },
-  { name: "Splashyard", cards: ["Graveyard", "Baby Dragon", "Knight", "Ice Wizard", "Tornado", "Poison", "Tombstone", "Barbarian Barrel"], key: "Baby Dragon" },
-];
-
-function renderSuggestedDecks(data) {
-  suggestedDecksList.innerHTML = "";
-
-  // Score each archetype: match fav card + card levels
-  const scored = ARCHETYPES.map((arch) => {
-    let score = 0;
-    let owned = 0;
-    let upgradeCount = 0;
-    let totalLevels = 0;
-
-    arch.cards.forEach((cardName) => {
-      const lv = playerCardsMap[cardName]?.level ?? 0;
-      const maxLv = playerCardsMap[cardName]?.maxLevel ?? RARITY_MAX[playerCardsMap[cardName]?.rarity?.toLowerCase()] ?? 14;
-      if (lv > 0) owned++;
-      if (lv < maxLv && lv > 0) upgradeCount++;
-      totalLevels += lv;
-
-      // Boost if matches fav card
-      if (currentFavCard && cardName.toLowerCase().includes(currentFavCard.toLowerCase())) {
-        score += 20;
+  if (sort === "rarity-group") {
+    cards.sort(function(a, b) {
+      var ri = RARITY_ORDER.indexOf(a.rarity);
+      var rj = RARITY_ORDER.indexOf(b.rarity);
+      if (ri === -1) ri = 99;
+      if (rj === -1) rj = 99;
+      return ri - rj || (b.level || 0) - (a.level || 0);
+    });
+  } else if (sort === "upgrade") {
+    // Upgrade priority: cards closest to next level first, then by rarity, then by name
+    cards.sort(function(a, b) {
+      function group(c) {
+        if (!c.owned) return 4;           // unowned last
+        if (c.level >= c.maxLevel) return 3; // maxed
+        var need = cardsForNext(c);
+        if (need == null || need <= 0) return 3;
+        return (c.count || 0) >= need ? 1 : 2; // can upgrade vs needs cards
       }
+
+      var ga = group(a), gb = group(b);
+      if (ga !== gb) return ga - gb;
+
+      // Within same group, sort by progress
+      function progress(c) {
+        if (!c.owned || c.level >= c.maxLevel) return 0;
+        var need = cardsForNext(c);
+        if (need == null || need <= 0) return 0;
+        return Math.min(100, Math.round((c.count || 0) / need * 100));
+      }
+
+      var pa = progress(a), pb = progress(b);
+      if (pa !== pb) return pb - pa;
+
+      // Then by rarity
+      var ra = RARITY_ORDER.indexOf(a.rarity);
+      var rb = RARITY_ORDER.indexOf(b.rarity);
+      if (ra === -1) ra = 99;
+      if (rb === -1) rb = 99;
+      if (ra !== rb) return ra - rb;
+
+      return a.name.localeCompare(b.name);
     });
+  } else {
+    // Default: level descending
+    cards.sort(function(a, b) {
+      return (b.level || 0) - (a.level || 0) || a.name.localeCompare(b.name);
+    });
+  }
 
-    const avgLevel = owned > 0 ? (totalLevels / owned).toFixed(1) : "—";
-    const missing = 8 - owned;
+  var total = mergedCards.length;
+  var shown = cards.length;
+  if (countLabel) {
+    countLabel.textContent = shown < total ? shown + " / " + total : total + " cards";
+  }
 
-    // Boost score by owned count
-    score += owned * 3;
-    // Boost if key card is owned
-    if (arch.key && playerCardsMap[arch.key]?.level > 0) score += 15;
+  if (!cards.length) {
+    cardGrid.innerHTML = '<div class="empty-state">No cards match.</div>';
+    return;
+  }
 
-    return { ...arch, score, owned, missing, upgradeCount, avgLevel };
+  cardGrid.innerHTML = "";
+  var frag = document.createDocumentFragment();
+
+  cards.forEach(function(card) {
+    var r      = card.rarity;
+    var lv     = card.level;
+    var maxLv  = card.maxLevel;
+    var owned  = card.owned;
+    var rawImg  = card.iconUrls && card.iconUrls.medium ? card.iconUrls.medium : "";
+    var img     = proxyImg(rawImg, card.name);
+    var fallback = "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><rect fill="#232544" width="40" height="40"/><text x="20" y="22" text-anchor="middle" fill="#8b8da8" font-size="12">?</text></svg>');
+    if (card.name === "Ronin") debug("Ronin img", {original: rawImg, proxied: img, fallback: fallback.substring(0,60)});
+    var isMaxed = owned && lv >= maxLv;
+    var color  = rarityColor(r);
+
+    var div = document.createElement("div");
+    div.className = "card-item rarity-" + r + (owned ? " owned" : "") + (isMaxed ? " maxed" : "") + (card.type === "tower" ? " tower-type" : "");
+
+    // Card body text (for owned non-maxed cards, including tower troops)
+    var bodyExtraHtml = "";
+    if (owned && !isMaxed) {
+      var needNext = cardsForNext(card);
+      var have     = card.count || 0;
+      var pctNext = needNext > 0 ? Math.min(100, Math.round(have / needNext * 100)) : 0;
+      var canUp   = needNext > 0 && have >= needNext;
+
+      bodyExtraHtml += '<div class="ci-lv">Lv' + lv + '</div>';
+      bodyExtraHtml += '<div class="ci-bar' + (canUp ? ' full' : '') + '"><div class="ci-fill" style="width:' + pctNext + '%"></div></div>';
+    }
+
+    div.innerHTML =
+      '<div class="card-img-wrap">' +
+        '<img src="' + img + '" alt="' + card.name + '" loading="lazy" onerror="this.onerror=null;this.src=\'' + fallback + '\'" />' +
+      '</div>' +
+      '<div class="card-body">' +
+        '<div class="card-n" style="color:' + color + '"><span class="card-n-text">' + card.name + '</span></div>' +
+        bodyExtraHtml +
+      '</div>';
+
+    frag.appendChild(div);
   });
 
-  // Sort by score descending
-  scored.sort((a, b) => b.score - a.score);
-
-  // Show top 6
-  scored.slice(0, 6).forEach((arch) => {
-    const block = document.createElement("div");
-    block.className = "suggested-deck-block";
-
-    const statusClass = arch.owned >= 6 ? "highlight" : arch.owned >= 4 ? "" : "warning";
-    const statusText = arch.owned >= 6
-      ? `${arch.owned}/8 cards owned ✓`
-      : arch.owned >= 4
-        ? `${arch.owned}/8 cards owned`
-        : `${arch.owned}/8 cards owned — ${arch.missing} missing`;
-
-    block.innerHTML = `
-      <h3>${arch.name}</h3>
-      <div class="deck-meta">
-        <span class="${statusClass}">${statusText}</span>
-        <span>Avg Lv: ${arch.avgLevel}</span>
-        ${arch.upgradeCount > 0 ? `<span class="warning">${arch.upgradeCount} cards can upgrade</span>` : ""}
-      </div>
-      <div class="deck-grid" style="grid-template-columns:repeat(8,1fr)">
-    `;
-
-    arch.cards.forEach((cardName) => {
-      const pc = playerCardsMap[cardName] || {};
-      const lv = pc.level ?? 0;
-      const icon = pc.iconUrls?.medium || allCardsDb[cardName]?.iconUrls?.medium || "";
-      const rarity = (pc.rarity || allCardsDb[cardName]?.rarity || "").toLowerCase();
-      const maxLv = pc.maxLevel ?? allCardsDb[cardName]?.maxLevel ?? RARITY_MAX[rarity] ?? 14;
-      const owned = lv > 0;
-      const canUp = owned && lv < maxLv;
-
-      const cardDiv = document.createElement("div");
-      cardDiv.className = "deck-card";
-      cardDiv.style.opacity = owned ? "1" : "0.35";
-      cardDiv.style.border = `1px solid ${rarityColor(rarity)}`;
-
-      cardDiv.innerHTML = `
-        <span class="deck-level" style="background:rgba(0,0,0,0.75);color:${rarityColor(rarity)}">${owned ? lv : "?"}</span>
-        <img src="${icon}" alt="${cardName}" loading="lazy"
-             onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 40 40%22><rect fill=%22%23232544%22 width=%2240%22 height=%2240%22/><text x=%2220%22 y=%2220%22 text-anchor=%22middle%22 fill=%22%238b8da8%22 font-size=%2210%22>?</text></svg>'"
-        />
-        <div class="deck-name">${cardName}</div>
-        ${canUp ? '<div style="font-size:0.6rem;color:var(--success)">⬆ Upgrade</div>' : owned ? '<div style="font-size:0.6rem;color:var(--accent)">MAX</div>' : '<div style="font-size:0.6rem;color:var(--accent3)">Missing</div>'}
-      `;
-      block.querySelector(".deck-grid").appendChild(cardDiv);
-    });
-
-    suggestedDecksList.appendChild(block);
-  });
+  cardGrid.appendChild(frag);
 }
 
-// --------------- Event handlers ---------------
-lookupForm.addEventListener("submit", async (e) => {
+// --------------- Rarity Multi-Select ---------------
+function updateRarities() {
+  var checks = msDropdown.querySelectorAll('input[type="checkbox"]');
+  var allCb = null;
+  selectedRarities = new Set();
+
+  checks.forEach(function(cb) {
+    if (cb.value === "all") { allCb = cb; return; }
+    if (cb.checked) selectedRarities.add(cb.value);
+  });
+
+  // If "All" is checked or nothing selected → show all
+  if (allCb && allCb.checked) {
+    selectedRarities = new Set();
+    // Uncheck all specific when All is checked
+    checks.forEach(function(cb) {
+      if (cb.value !== "all") cb.checked = false;
+    });
+  } else if (selectedRarities.size === 0 && allCb) {
+    allCb.checked = true;
+  }
+
+  // Update button label
+  if (selectedRarities.size === 0) {
+    msBtn.textContent = "Rarity ▾";
+  } else {
+    msBtn.textContent = selectedRarities.size + " ▾";
+  }
+
+  renderCards();
+}
+
+// --------------- Events ---------------
+lookupForm.addEventListener("submit", function(e) {
   e.preventDefault();
-  const tag = tagInput.value.trim();
-  if (!tag) return;
-  await loadPlayer(tag);
+  var tag = tagInput.value.trim();
+  if (tag) loadPlayer(tag);
 });
 
-loadDefaultBtn.addEventListener("click", async () => {
-  if (DEFAULT_PLAYER_TAG) {
+mineBtn.addEventListener("click", function() {
+  if (typeof DEFAULT_PLAYER_TAG !== "undefined" && DEFAULT_PLAYER_TAG) {
     tagInput.value = DEFAULT_PLAYER_TAG;
-    await loadPlayer(DEFAULT_PLAYER_TAG);
+    loadPlayer(DEFAULT_PLAYER_TAG);
   }
 });
 
-// Auto-load default on page load
-if (DEFAULT_PLAYER_TAG) {
-  setTimeout(() => loadPlayer(DEFAULT_PLAYER_TAG), 300);
+// Multi-select dropdown
+msBtn.addEventListener("click", function(e) {
+  e.stopPropagation();
+  msDropdown.classList.toggle("open");
+});
+
+msDropdown.addEventListener("change", function(e) {
+  var cb = e.target;
+  if (cb.value === "all" && cb.checked) {
+    // "All" checked → uncheck everything else
+    msDropdown.querySelectorAll('input[type="checkbox"]').forEach(function(c) {
+      c.checked = (c.value === "all");
+    });
+  } else if (cb.checked) {
+    // A specific box checked → uncheck "All"
+    var allCb = msDropdown.querySelector('input[value="all"]');
+    if (allCb) allCb.checked = false;
+  }
+  updateRarities();
+});
+
+// Close dropdown when clicking outside
+document.addEventListener("click", function() {
+  msDropdown.classList.remove("open");
+});
+
+sortSelect.addEventListener("change", renderCards);
+searchInput.addEventListener("input", renderCards);
+
+// --------------- Auto-load ---------------
+if (typeof DEFAULT_PLAYER_TAG !== "undefined" && DEFAULT_PLAYER_TAG) {
+  setTimeout(function() { loadPlayer(DEFAULT_PLAYER_TAG); }, 300);
 }

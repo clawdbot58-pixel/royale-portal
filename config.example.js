@@ -3,4 +3,4 @@
 // Then copy this file to config.js and fill in your token.
 
 const CLASH_ROYALE_API_TOKEN = "";
-const API_BASE = "https://api.clashroyale.com/v1";
+// API_BASE is auto-detected in app.js — no need to declare it here

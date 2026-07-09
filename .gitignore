@@ -5,3 +5,6 @@ node_modules/
 
 # Private API key (copy from config.example.js)
 config.js
+
+# Cached card images
+img_cache/

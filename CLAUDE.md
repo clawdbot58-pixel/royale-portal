@@ -24,13 +24,14 @@ This keeps context clean so the next AI working on this repo doesn't inherit sta
 
 ## Project Overview
 
-A zero-dependency, client-side SPA for Clash Royale statistics. Open `index.html` in a browser — no build step. Uses the official Clash Royale Developer API (requires a free API token in `config.js`).
+A zero-dependency, client-side SPA for Clash Royale statistics. Open `index.html` in a browser — no build step. Uses the official Clash Royale Developer API (requires a free API token in `config.js`). Also includes a CLI (`cli.js`) for terminal upgrade snapshots.
 
 ## Script Load Order (defined in index.html)
 
 ```
 player-config.js   → DEFAULT_PLAYER_TAG (public, committed)
 config.js          → CLASH_ROYALE_API_TOKEN + API_BASE (gitignored, NEVER read)
+card-data.js       → CARDS_* arrays, GOLD_PER_LEVEL, MAX_LEVELS, START_LEVELS
 app.js             → All logic depends on globals from above
 ```
 
@@ -40,9 +41,12 @@ app.js             → All logic depends on globals from above
 
 | File | Tracked? | Purpose |
 |---|---|---|
-| `index.html` | ✅ | Full page with 4-tab layout: Dashboard, Current Deck, Card Collection, Suggested Decks |
-| `style.css` | ✅ | Dark theme, tab bar, stat grids, deck cards, card collection grid, responsive |
+| `index.html` | ✅ | Full page with card collection grid, rarity filter, search, sort |
+| `style.css` | ✅ | Dark theme, card grid, progress bars, responsive |
 | `app.js` | ✅ | All logic — API calls, state, rendering, event handlers |
+| `card-data.js` | ✅ | Upgrade tables (cards & gold per level), max levels, start levels |
+| `cli.js` | ✅ | CLI upgrade snapshot tool (`node cli.js`) |
+| `serve.py` | ✅ | Local dev server + API proxy + image CDN cache |
 | `player-config.js` | ✅ | Default player tag (public, your tag, committed) |
 | `config.example.js` | ✅ | Template for API key file |
 | `config.js` | ❌ | Private API token — **never read** |
@@ -151,15 +155,85 @@ function calcUpgradePriority(card) {
 
 The `/players/{tag}` response includes: `currentDeck[]`, `cards[]` (all owned cards with levels), `leagueStatistics`, `currentPathOfLegendSeasonResult`, `arena`, `badges`, `achievements`, etc. Card objects contain `name`, `id`, `level`, `maxLevel`, `elixirCost`, `rarity`, `iconUrls.medium`.
 
-## Rarity Max Levels
+## Card Upgrade System
 
-| Rarity | Max Level |
-|---|---|
-| common | 16 |
-| rare | 14 |
-| epic | 11 |
-| legendary | 9 |
-| champion | 6 |
+### Array Convention — CRITICAL
+
+`card-data.js` defines `CARDS_COMMON`, `CARDS_RARE`, `CARDS_EPIC`, `CARDS_LEGENDARY`, `CARDS_CHAMPION` — incremental cards needed per upgrade step. The convention is:
+
+**`arr[N]` = cards needed to reach level N from N-1** (target-level indexed)
+
+```
+// Example: CARDS_EPIC
+arr[6]  = 1    // 5→6  (unlock at lv 6)
+arr[7]  = 2    // 6→7
+arr[8]  = 4    // 7→8
+...
+arr[16] = 180  // 15→16 (max)
+```
+
+`cardsForNext(card)` does `arr[card.level + 1]`. A card at game level 15 looks up `arr[16]`.
+
+The arrays match the official upgrade table:
+
+| Game level | Common | Rare | Epic | Legendary | Champion |
+|---|---|---|---|---|---|
+| 1→2 | 1 | — | — | — | — |
+| 2→3 | 2 | — | — | — | — |
+| 3→4 | 4 | 1 | — | — | — |
+| 4→5 | 10 | 2 | — | — | — |
+| 5→6 | 20 | 4 | — | — | — |
+| 6→7 | 50 | 10 | 1 | — | — |
+| 7→8 | 100 | 20 | 2 | — | — |
+| 8→9 | 200 | 50 | 4 | — | — |
+| 9→10 | 400 | 100 | 10 | 1 | — |
+| 10→11 | 800 | 200 | 20 | 2 | — |
+| 11→12 | 1,000 | 300 | 30 | 4 | 1 |
+| 12→13 | 1,500 | 400 | 50 | 6 | 2 |
+| 13→14 | 2,500 | 550 | 70 | 9 | 5 |
+| 14→15 | 3,500 | 750 | 100 | 12 | 8 |
+| 15→16 | 5,500 | 1,000 | 130 | 14 | 11 |
+| 16→17 | 7,500 | 1,400 | 180 | 20 | 15 |
+
+**To add a new level (e.g., 17):** add `arr[17]` to each rarity array, update `MAX_LEVELS` to 17. Everything else reads dynamically.
+
+### Level Conversion (API → Game)
+
+```js
+gameLv = apiLv + startLv - 1   // where startLv = START_LEVELS[rarity]
+```
+
+The Clash Royale API returns levels relative to each rarity's start level. `START_LEVELS` maps to the game-level start:
+- Common: 1, Rare: 3, Epic: 6, Legendary: 9, Champion: 11
+
+### Game Max Levels
+
+| Rarity | Start Lv | API Max | Game Max |
+|---|---|---|---|
+| common | 1 | 14 | 16 |
+| rare | 3 | 14 | 16 |
+| epic | 6 | 11 | 16 |
+| legendary | 9 | 8 | 16 |
+| champion | 11 | 6 | 16 |
+
+All rarities cap at **game level 16** (`MAX_LEVELS` in `card-data.js`). The API `maxLevel` field is API-relative; the game max is derived from `MAX_LEVELS[rarity]`.
+
+### Gold Costs
+
+`GOLD_PER_LEVEL[N]` = gold to reach level N. Same for all rarities. Final step (15→16) costs 120,000 gold.
+
+## Tower Troops
+
+Tower troops (Tower Princess, Cannoneer, Dagger Duchess, Royal Chef) come from:
+- `/cards` → `supportItems[]` — tagged `type: "tower"` in `allCardsDb`
+- `/players/{tag}` → `supportCards[]` — levels and card counts
+
+They use the **exact same** system as regular cards:
+- Same rarity-based level conversion (`apiLv + startLv - 1`)
+- Same `CARDS_*` upgrade arrays for card counts
+- Same progress bars and upgrade detection
+
+New tower troops added by Supercell will work automatically — they flow through `supportItems` → `allCardsDb` → `supportCards` → `mergedCards` with the correct rarity arrays.
 
 ## Styling
 
