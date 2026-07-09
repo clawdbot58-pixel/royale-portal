@@ -2,3 +2,6 @@
 *.log
 .env
 node_modules/
+
+# Private API key (copy from config.example.js)
+config.js

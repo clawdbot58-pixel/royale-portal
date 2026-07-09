@@ -39,16 +39,33 @@ open index.html
 3. Browse stats, deck, and suggestions.
 
 > **Note on API access**  
-> The app fetches data via the [Clash Royale Developer API](https://developer.clashroyale.com) through the community CORS proxy at [proxy.royaleapi.dev](https://proxy.royaleapi.dev).  
-> If the proxy rate-limit is exceeded, wait a moment and try again.
+> This app uses the official [Clash Royale Developer API](https://developer.clashroyale.com).  
+> You need a free API token to make requests — see **API Token Setup** below.
+
+### 3. API Token Setup
+
+1. Go to [developer.clashroyale.com](https://developer.clashroyale.com) and register an account.
+2. Create a new API key and whitelist your IP address.
+3. Copy `config.example.js` to `config.js`:
+   ```bash
+   cp config.example.js config.js
+   ```
+4. Paste your API token into `config.js`:
+   ```js
+   const CLASH_ROYALE_API_TOKEN = "your-token-here";
+   ```
+
+> ⚠️ `config.js` is gitignored — it will never be committed or pushed.
 
 ## Project Structure
 
 ```
-├── index.html     → Main page
-├── style.css      → Dark-theme styles
-├── app.js         → All logic (API calls, rendering, deck suggestions)
-└── README.md      → This file
+├── config.example.js  → API key template (commit this)
+├── config.js          → 🔐 Your private API key (gitignored)
+├── index.html         → Main page
+├── style.css          → Dark-theme styles
+├── app.js             → All logic (API calls, rendering, deck suggestions)
+└── README.md          → This file
 ```
 
 ## Tech Stack

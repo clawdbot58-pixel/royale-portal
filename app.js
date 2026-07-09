@@ -1,9 +1,10 @@
 /* =====================================================
    app.js — Royale Portal
-   Uses the Clash Royale API via royaleapi.dev CORS proxy.
+   Uses the Clash Royale Developer API with a private
+   API token from config.js.
    ===================================================== */
 
-const API_BASE = "https://proxy.royaleapi.dev/v1";
+// API_BASE and CLASH_ROYALE_API_TOKEN come from config.js
 
 // --------------- DOM refs ---------------
 const lookupForm = document.getElementById("player-lookup");
@@ -70,17 +71,22 @@ async function fetchPlayer(tag) {
   const clean = sanitizeTag(tag);
   if (!clean) throw new Error("Invalid player tag");
 
+  if (!CLASH_ROYALE_API_TOKEN) {
+    throw new Error("API token not configured. Add your token to config.js (see config.example.js)");
+  }
+
   const url = `${API_BASE}/players/${encodeURIComponent(clean)}`;
 
   const resp = await fetch(url, {
     headers: {
       Accept: "application/json",
+      Authorization: `Bearer ${CLASH_ROYALE_API_TOKEN}`,
     },
   });
 
   if (!resp.ok) {
     if (resp.status === 404) throw new Error("Player not found — check your tag");
-    if (resp.status === 403) throw new Error("API rate limit or auth error. Try again later.");
+    if (resp.status === 403) throw new Error("API key rejected or rate-limited. Check your token in config.js.");
     throw new Error(`API error (${resp.status})`);
   }
 
