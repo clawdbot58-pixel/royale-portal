@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Royale Portal — Clash Royale Stats</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <header class="hero">
+    <div class="container">
+      <h1>🏆 Royale Portal</h1>
+      <p class="tagline">Analyse your Clash Royale stats, discover unbeatable decks, and level up your game.</p>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- Player Lookup -->
+    <section class="card" id="lookup-section">
+      <h2>Find a Player</h2>
+      <form id="player-lookup" autocomplete="off">
+        <div class="input-group">
+          <label for="player-tag">Player Tag</label>
+          <input
+            type="text"
+            id="player-tag"
+            placeholder="#2YCPLJC9V"
+            required
+          />
+        </div>
+        <button type="submit" class="btn-primary">Search</button>
+      </form>
+      <div class="hint">Don't have a tag? Try <code>#2YCPLJC9V</code></div>
+    </section>
+
+    <!-- Loading -->
+    <div id="loading" class="card loading-card hidden">
+      <div class="spinner"></div>
+      <p>Fetching player data from the arena...</p>
+    </div>
+
+    <!-- Error -->
+    <div id="error" class="card error-card hidden">
+      <p id="error-message"></p>
+    </div>
+
+    <!-- Results Dashboard -->
+    <div id="results" class="hidden">
+
+      <!-- Profile Summary -->
+      <section class="card" id="profile">
+        <div class="profile-header">
+          <img id="avatar" src="" alt="avatar" class="avatar" />
+          <div>
+            <h2 id="player-name">—</h2>
+            <div class="badge-row">
+              <span class="badge" id="player-clan">—</span>
+              <span class="badge" id="player-trophies">🏆 —</span>
+              <span class="badge" id="player-level">Lv —</span>
+              <span class="badge" id="player-league">—</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Stats Grid -->
+      <section class="stats-grid">
+        <div class="stat-card"><h3>Wins</h3><p id="stat-wins">—</p></div>
+        <div class="stat-card"><h3>Losses</h3><p id="stat-losses">—</p></div>
+        <div class="stat-card"><h3>Draws</h3><p id="stat-draws">—</p></div>
+        <div class="stat-card"><h3>Win Rate</h3><p id="stat-winrate">—</p></div>
+        <div class="stat-card"><h3>Total Games</h3><p id="stat-games">—</p></div>
+        <div class="stat-card"><h3>Three Crowns</h3><p id="stat-3crowns">—</p></div>
+        <div class="stat-card"><h3>Favorite Card</h3><p id="stat-favcard">—</p></div>
+        <div class="stat-card"><h3>Max Trophies</h3><p id="stat-maxtrophies">—</p></div>
+      </section>
+
+      <!-- Current Deck -->
+      <section class="card" id="deck-section">
+        <h2>Current Deck</h2>
+        <div id="current-deck" class="deck-grid"></div>
+      </section>
+
+      <!-- Suggested Deck -->
+      <section class="card" id="suggested-deck-section">
+        <h2>Suggested Deck</h2>
+        <p class="section-sub">Based on your trophies and favourite card</p>
+        <div id="suggested-deck" class="deck-grid"></div>
+      </section>
+
+      <!-- Recent Battles -->
+      <section class="card" id="battles-section">
+        <h2>Recent Battles</h2>
+        <div id="battle-log"></div>
+      </section>
+
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="container">
+      <p>Royale Portal &mdash; Not affiliated with Supercell.</p>
+      <p>Data sourced from <a href="https://docs.clashroyale.com/" target="_blank" rel="noopener">Clash Royale API</a>.</p>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
