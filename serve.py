@@ -11,7 +11,8 @@ import re
 import sys
 import ssl
 
-PORT = 8080
+PORT = int(os.environ.get("PORT", 8090))
+HOST = os.environ.get("HOST", "")  # "" = all interfaces, including tailscale0
 API_BASE  = "https://api.clashroyale.com/v1"
 IMG_BASE  = "https://api-assets.clashroyale.com"
 HERE      = os.path.dirname(os.path.abspath(__file__))
@@ -134,9 +135,10 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
 if __name__ == "__main__":
     print(f"\n  Royale Portal → http://localhost:{PORT}/")
+    print(f"  Listening on {HOST or '0.0.0.0'}:{PORT} — reachable from any Tailscale peer")
     print(f"  Image cache → {IMG_CACHE}/\n")
     try:
-        http.server.HTTPServer(("", PORT), Handler).serve_forever()
+        http.server.HTTPServer((HOST, PORT), Handler).serve_forever()
     except KeyboardInterrupt:
         print("\n  Shut down.\n")
         sys.exit(0)
