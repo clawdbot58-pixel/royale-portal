@@ -1,6 +1,6 @@
-# CLAUDE.md
+# AGENTS.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to coding agents when working with code in this repository.
 
 ## 🔐 Context Hygiene — CRITICAL
 
@@ -50,7 +50,7 @@ app.js             → All logic depends on globals from above
 | `player-config.js` | ✅ | Default player tag (public, your tag, committed) |
 | `config.example.js` | ✅ | Template for API key file |
 | `config.js` | ❌ | Private API token — **never read** |
-| `CLAUDE.md` | ✅ | This file |
+| `AGENTS.md` | ✅ | This file |
 
 ### App State (all in `app.js` globals)
 
@@ -261,4 +261,4 @@ Zero dependencies. Needs a valid API token in `config.js` (copy from `config.exa
 - **Add a new tab**: add `<button class="tab-btn" data-tab="newtab">` to `#tab-bar`, add `<div class="tab-panel" id="tab-newtab">`, add handler in the tab loop
 - **Change card icon source**: the API returns real CDN URLs in `iconUrls.medium` — don't override with hardcoded URLs
 - **Push**: `git push origin main` (HTTPS with token auth works if SSH isn't configured)
-- **Do not append `Co-Authored-By: Claude` to commit messages** — Claude-generated commits should credit the human user, not Claude.
+- **Do not append AI co-author trailers to commit messages** — commits credit the human user, not the agent.
