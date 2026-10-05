@@ -179,15 +179,16 @@ def step_images(cards_data):
 # ── Step 4: Verify serve.py works ───────────────────────────────────────────
 
 def step_verify_server():
-    # Check if port 8080 is free (rough check)
+    # Check if the serve.py port is free (rough check)
     import socket
+    port = int(os.environ.get("PORT", 8090))
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
-        s.bind(("127.0.0.1", 8080))
+        s.bind(("127.0.0.1", port))
         s.close()
-        info("Port 8080 is free — serve.py can start")
+        info(f"Port {port} is free — serve.py can start")
     except OSError:
-        warn("Port 8080 in use — maybe serve.py is already running?")
+        warn(f"Port {port} in use — maybe serve.py is already running?")
 
     # Verify serve.py exists
     if os.path.exists(os.path.join(HERE, "serve.py")):
@@ -222,7 +223,7 @@ def main():
     python3 serve.py
 
   Then open:
-    http://localhost:8080/
+    http://localhost:8090/
 
   The app will auto-load your default player tag.
   Edit card-data.js to fix the upgrade requirement numbers.

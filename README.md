@@ -10,10 +10,11 @@ Enter your player tag and get detailed stats, your current deck, suggested meta 
 ## Features
 
 - **Player Lookup** — search any Clash Royale player by tag
-- **Stats Dashboard** — wins, losses, win rate, total games, three crowns, and more
-- **Current Deck** — see the 8 cards your target is currently using
-- **Suggested Deck** — an archetype recommendation based on your trophy range and favourite card
-- **Battle History** — recent match results
+- **Collection** — all 123 cards + 4 tower troops with level, progress, evolution/hero badges, rarity multi-select, status filters, search, upgrade-priority sort
+- **Deck Builder** — 8 slots with champion / evolution / hero / wild rules, tower troop selection, live legality check, average elixir
+- **Deck Suggestions** — 26 meta archetypes scored against your actual levels, with the upgrade plan to close the gap
+- **Deck Rules** — the verified slot rules, ceilings, and unlock thresholds, in-app
+- **CLI** — `node cli.js` prints an upgrade snapshot in the terminal
 
 ## Getting Started
 
@@ -24,13 +25,16 @@ git clone https://github.com/clawdbot58-pixel/royale-portal.git
 cd royale-portal
 ```
 
-### 2. Open the app
+### 2. Run the server
 
-Simply open `index.html` in your browser — it's a fully client-side SPA. No build step needed.
+The app is client-side but the Clash Royale API needs CORS + auth, so requests go through `serve.py`:
 
 ```bash
-open index.html
+python3 setup.py      # one-time: creates config.js from config.example.js
+python3 serve.py      # default port 8090, configurable via PORT/HOST
 ```
+
+Then open `http://localhost:8090/`. Opening `index.html` directly will not work.
 
 ### 3. Use it
 
@@ -62,9 +66,17 @@ open index.html
 ```
 ├── config.example.js  → API key template (commit this)
 ├── config.js          → 🔐 Your private API key (gitignored)
+├── player-config.js   → Default player tag (public)
 ├── index.html         → Main page
 ├── style.css          → Dark-theme styles
-├── app.js             → All logic (API calls, rendering, deck suggestions)
+├── card-data.js       → Upgrade tables, max levels, slot rules, heroes
+├── card-roles.js      → Card role/tag classification
+├── meta-decks.js      → Archetype dataset
+├── deck-engine.js     → Deck legality + scoring (pure, no DOM)
+├── app.js             → UI logic (API calls, rendering, event handlers)
+├── cli.js             → Terminal upgrade snapshot
+├── serve.py           → Dev server + API proxy + image cache
+├── deck-rules.md      → Verified deck-building rules
 └── README.md          → This file
 ```
 
@@ -77,8 +89,8 @@ open index.html
 ## Roadmap
 
 - [ ] Support for `#`-tag autocomplete
-- [ ] Deck builder with elixir average calculator
-- [ ] Card level upgrade tracker
+- [x] Deck builder with slot rules and elixir average calculator
+- [x] Card level upgrade tracker
 - [ ] Clan management dashboard
 - [ ] River race stats
 - [ ] Player vs player comparison

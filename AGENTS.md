@@ -31,8 +31,11 @@ A zero-dependency, client-side SPA for Clash Royale statistics. Open `index.html
 ```
 player-config.js   → DEFAULT_PLAYER_TAG (public, committed)
 config.js          → CLASH_ROYALE_API_TOKEN + API_BASE (gitignored, NEVER read)
-card-data.js       → CARDS_* arrays, GOLD_PER_LEVEL, MAX_LEVELS, START_LEVELS
-app.js             → All logic depends on globals from above
+card-data.js       → CARDS_* arrays, GOLD_PER_LEVEL, MAX_LEVELS, START_LEVELS, DECK_SIZE, SLOT_RULES, HEROES, TOWER_TROOPS
+card-roles.js      → CARD_ROLES — every card + tower troop mapped to role/tags/air/splash/cycle
+meta-decks.js      → META_DECKS — validated archetypes with slot assignments
+deck-engine.js     → Pure deck logic (no DOM, no fetch): cardFlags, assignSlots, deckViolations, scoreArchetype, rankArchetypes, deckUpgradePlan
+app.js             → All UI logic depends on globals from above
 ```
 
 ## Architecture
@@ -45,6 +48,10 @@ app.js             → All logic depends on globals from above
 | `style.css` | ✅ | Dark theme, card grid, progress bars, responsive |
 | `app.js` | ✅ | All logic — API calls, state, rendering, event handlers |
 | `card-data.js` | ✅ | Upgrade tables (cards & gold per level), max levels, start levels |
+| `card-roles.js` | ✅ | Role/tag classification for every card (used by the suggestion engine) |
+| `meta-decks.js` | ✅ | Archetype dataset with slot assignments + a self-check that runs under node |
+| `deck-engine.js` | ✅ | Deck legality + scoring — pure functions over the globals above |
+| `deck-rules.md` | ✅ | Verified deck-building rules (slots, ceilings, unlocks) with sources |
 | `cli.js` | ✅ | CLI upgrade snapshot tool (`node cli.js`) |
 | `serve.py` | ✅ | Local dev server + API proxy + image CDN cache |
 | `player-config.js` | ✅ | Default player tag (public, your tag, committed) |
@@ -55,11 +62,17 @@ app.js             → All logic depends on globals from above
 ### App State (all in `app.js` globals)
 
 ```
-allCardsDb {}       → Card database from API (name → {id, name, elixirCost, rarity, iconUrls, maxLevel})
-playerCardsMap {}   → User's cards (name → {level, maxLevel, ...})
-currentPlayerData   → Raw API response (used briefly to render, then discard)
-currentFavCard      → Name of favourite card
-currentPlayerTag    → Current tag being viewed
+allCardsDb {}        → Card DB from API (name → {id, name, elixirCost, rarity, iconUrls, maxLevel, maxEvolutionLevel, hasEvo, hasHero, type})
+mergedCards []       → Every card in the DB merged with the player's state (level, count, owned, evolutionLevel, maxEvolutionLevel, type)
+currentPlayerData    → Raw API response (kept for the deck builder reset button)
+currentDeck []       → [{name, slot}] — the deck being edited, seeded from the API's currentDeck
+currentTower         → Equipped tower troop name (from currentDeckSupportCards)
+currentFavCard       → Name of favourite card (from currentFavouriteCard)
+currentPlayerTag     → Current tag being viewed
+selectedRarities Set → Rarity filter (empty = show all); "tower" filters by type
+statusFilter         → Collection filter: all / owned / undiscovered / evo-capable / evo-unlocked / hero-capable
+suggMode             → Suggestion mode filter: all / ladder / clanwars / challenge
+activeTab            → collection / deck / suggestions / rules
 ```
 
 ### Data Flow
@@ -67,82 +80,79 @@ currentPlayerTag    → Current tag being viewed
 ```
 Page load / tag submit
   │
-  ├─ fetchCards()         → GET /cards (cached in allCardsDb once)
+  ├─ fetchCards()      → GET /cards (cached in allCardsDb once)
   │
-  ├─ fetchPlayer(tag)     → GET /players/{tag}
+  ├─ fetchPlayer(tag)  → GET /players/{tag}
   │     │
-  │     ├─ renderDashboard(data)     → Profile, stats grid, season, Path of Legend
-  │     ├─ renderDeckTab(data)       → 8 deck cards + support cards + elixir avg
-  │     ├─ renderCardCollection(data) → All 122 cards with levels + filter/sort
-  │     └─ renderSuggestedDecks()    → Scores 14 archetypes vs your cards
+  │     ├─ buildMergedCards(data)  → mergedCards (levels converted, evolution fields carried)
+  │     ├─ renderCards()           → Collection grid: badges, filters, sort
+  │     ├─ renderDeckBuilder()     → 8 slots + tower troop + live rule check + pick list
+  │     └─ renderSuggestions()     → rankArchetypes() over META_DECKS scored against your levels
   │
-  └─ switch to Dashboard tab
+  └─ showContent() — stays on the Collection tab
 ```
 
 ### Tab System (pure JS, no router)
 
 ```js
-tabBtns.forEach(btn => btn.addEventListener("click", () => {
-  // toggle .active on tab-btn and matching tab-panel
-}));
+tabBar.addEventListener("click", e => switchTab(e.target.closest(".tab-btn").dataset.tab));
+// switchTab toggles .active on the matching .tab-btn and #tab-{name}
 ```
 
-Tabs: `dashboard`, `deck`, `cards`, `suggestions` — each maps to `#tab-{name}`.
+Tabs: `collection`, `deck`, `suggestions`, `rules` — each maps to `#tab-{name}`.
 
 ### Key Functions in app.js
 
-| Function | Lines | What it does |
+| Function | File | What it does |
 |---|---|---|
-| `apiFetch(path)` | ~65 | Generic GET with Bearer auth, error handling |
-| `fetchCards()` | ~75 | Loads card DB from API into `allCardsDb` (runs once) |
-| `fetchPlayer(tag)` | ~82 | Loads player data from API |
-| `loadPlayer(tag)` | ~87 | Orchestrator: fetch → build maps → render all tabs → switch to dashboard |
-| `renderDashboard(data)` | ~100 | Profile header, 12 stat cards, season/POL boxes |
-| `renderDeckTab(data)` | ~180 | Deck grid with level/elixir badges, elixir average, rarity breakdown |
-| `renderDeckCards(cards, container, showMeta)` | ~200 | Renders card grid items (reused for current deck, support, suggestions) |
-| `renderCardCollection(data)` | ~225 | Full card grid with rarity filter & sort dropdowns |
-| `renderFilteredCards(cards)` | ~230 | Filters by rarity, sorts by name/level/upgrade priority, renders progress bars |
-| `calcUpgradePriority(card)` | ~275 | Lower score = higher priority (closer to max = higher priority) |
-| `renderSuggestedDecks(data)` | ~285 | Scores 14 meta archetypes, shows top 6 with owned/missing/upgrade status |
-| `sanitizeTag(tag)` | ~55 | Strips non-alnum, uppercases, prepends `#` |
+| `apiFetch(path)` | app.js | GET through serve.py's `/api` proxy, error handling |
+| `fetchCards()` | app.js | Loads card DB + supportItems into `allCardsDb` (runs once) |
+| `fetchPlayer(tag)` | app.js | Loads player data |
+| `buildMergedCards(data)` | app.js | Merges owned cards + support cards into `mergedCards` (API→game level conversion) |
+| `cardsForNext(card)` / `goldForNext(card)` | app.js | Incremental cost for the next level (arrays are target-level indexed) |
+| `cardsToMax(card)` / `goldToMax(card)` | app.js | Sum of cards/gold to reach max — used by the upgrade plan |
+| `loadPlayer(tag)` | app.js | Orchestrator: fetch → merge → render collection, deck builder, suggestions |
+| `renderCards()` | app.js | Collection grid: rarity + status filters, search, sort, badges |
+| `renderDeckBuilder()` | app.js | Slot grid, tower select, rule check, pick list |
+| `renderSuggestions()` | app.js | Ranked archetypes with owned/missing chips and upgrade plan |
+| `cardFlags(merged)` | deck-engine.js | champion / evo-capable / evo-unlocked / hero-capable / role / level for one card |
+| `assignSlots(cards)` | deck-engine.js | Greedy slot assignment (champion → evolution → hero → wild) + overflow |
+| `deckViolations(cards, tower)` | deck-engine.js | Deck size, duplicates, ceilings, unowned cards, tower troop |
+| `scoreArchetype(arch, index, fav)` | deck-engine.js | Score one archetype against the player |
+| `rankArchetypes(index, fav)` | deck-engine.js | Score + sort every archetype |
+| `deckUpgradePlan(result, index, cardsToMax, goldToMax)` | deck-engine.js | What to upgrade to make a deck work |
+| `sanitizeTag(tag)` | app.js | Strips non-alnum, uppercases, prepends `#` |
 
 ### Deck Card Rendering
 
-Each card in a deck grid shows:
-- ⚡ Elixir cost badge (top-left)
-- Level badge (top-right, colored by rarity)
-- Card image (from `iconUrls.medium`, with fallback)
-- Card name
-- Level progress (e.g. `13/14`)
+Deck builder rows show: card image, name with ⚡ (evolution active) / ★ (hero-capable) marks, level + elixir, a slot selector (champion / evolution / hero / wild / normal), and a remove button. The summary line reports deck size, average elixir, the equipped tower troop, and which cards occupy which special slots. `slotViolations()` adds the two rules the count ceilings can't express: only one card per special slot, and only special cards may occupy special slots.
 
 ### Card Collection
 
-122 cards displayed in a responsive grid. Each card:
-- Left border colored by rarity
+All 123 cards + 4 tower troops in a responsive grid. Each card:
+- Left border colored by rarity (gold for evolution-capable, blue for hero-capable)
 - Image, name, level (green if upgradable, gold if maxed)
-- Elixir cost, rarity label
-- Progress bar (filled % of max level)
+- Progress bar (filled % toward the next level)
+- Badges: `Evo n/m` (filled when unlocked, outlined when not), `Hero +n⚡` (ability cost), role label
+- Undiscovered cards render dimmed and are excluded from deck legality
 
-Filters: all / common / rare / epic / legendary / champion
-Sorts: name / level ↑ / level ↓ / upgrade priority
+Filters: rarity multi-select (all / common / rare / epic / legendary / champion / tower) and status (all / owned / undiscovered / evolution-capable / evolutions unlocked / hero-capable)
+Sorts: upgrade priority / level ↓ / rarity + level
 
 ### Upgrade Priority Algorithm
 
 ```js
-function calcUpgradePriority(card) {
-  // Maxed cards = lowest priority (999)
-  // Cards closest to max but not yet maxed = highest priority
-  return (maxLv - lv) * 10;
-}
+// Inline in renderCards(): unowned last, then can-upgrade-now, then needs-cards,
+// then maxed; within a group, by % toward the next level, then rarity, then name.
 ```
 
 ### Suggested Decks
 
-14 hardcoded meta archetypes scored against the player's card collection:
-- +20 points if a card matches the favourite card
-- +3 per owned card
-- +15 if the archetype's key card is owned
-- Top 6 displayed, each with owned/missing count, avg level, upgrade suggestions
+26 archetypes in `meta-decks.js`, scored against your collection: +3 per owned card, +2 per average level, +6 per unlocked evolution, +4 per hero-capable card, +3 per champion, +15 for the key card, +20 for the favourite, tier bonus S/A/B, +12 for a win condition, +6 for a spell, +6 for 2+ air answers, +4 for cycle ≤ 3.5 avg elixir, −5 per missing card, −12 per rule violation. Top 10 shown with owned/missing chips, avg level, tower troop, and the upgrade plan to close the gap.
+
+### Deck Rules (verified — full version in `deck-rules.md`)
+
+Deck = 8 cards + 1 tower troop. Four special slots: 1 champion, 1 evolution, 1 hero, 1 wild — the wild accepts a champion, a hero, **or** an evolution. Ceilings: 2 champions, 2 heroes, 2 evolutions, 4 special cards total; a special card in a normal slot behaves as the plain card. Slot unlocks: champion Arena 5, hero Arena 5 (moved from Arena 15 on 23 Feb 2026), evolution Arena 3 (600), wild Arena 10 (3000). Evolution unlock = 6 shards (levels 1–3); hero unlock = 200 shards; hero abilities are single-use since 4 Aug 2026. The **Rules** tab renders the same content for users. `SLOT_RULES`, `DECK_SIZE`, `HEROES`, `TOWER_TROOPS` in `card-data.js` are the machine-readable version and `deck-rules.md` is the sourced reference — update them together.
 
 ## API
 
@@ -153,7 +163,7 @@ function calcUpgradePriority(card) {
 - **Auth**: `Authorization: Bearer <token>`
 - **Rate limit**: Developer tier (check developer.clashroyale.com)
 
-The `/players/{tag}` response includes: `currentDeck[]`, `cards[]` (all owned cards with levels), `leagueStatistics`, `currentPathOfLegendSeasonResult`, `arena`, `badges`, `achievements`, etc. Card objects contain `name`, `id`, `level`, `maxLevel`, `elixirCost`, `rarity`, `iconUrls.medium`.
+The `/players/{tag}` response includes: `currentDeck[]`, `cards[]` (owned cards), `supportCards[]` (tower troop levels), `currentDeckSupportCards[]` (the equipped tower troop), `currentFavouriteCard`, `leagueStatistics`, `currentPathOfLegendSeasonResult`, `arena`, `badges`, `achievements`. Card objects carry `name`, `id`, `level`, `maxLevel`, `elixirCost`, `rarity`, `count`, `starLevel`, `evolutionLevel`, `maxEvolutionLevel`, `iconUrls.medium` (plus `iconUrls.evolutionMedium` on evolution cards). `/cards` returns `items[]` + `supportItems[]`; `type`/`race` are NOT returned, so roles come from `card-roles.js`. The API exposes no hero cards — hero availability is modelled in `card-data.js` and hero unlock state is unreadable, so the UI shows hero-capable base cards only.
 
 ## Card Upgrade System
 
@@ -249,16 +259,17 @@ Dark theme via CSS custom properties in `:root`. Key tokens:
 ## Running
 
 ```bash
-open index.html
+python3 serve.py          # PORT/HOST env override; default 8090, binds all interfaces
 ```
 
-Zero dependencies. Needs a valid API token in `config.js` (copy from `config.example.js`).
+Then open `http://localhost:8090/`. Opening `index.html` directly does NOT work — the API proxy lives in `serve.py`, so `file://` requests fail by design. Zero dependencies; needs a valid API token in `config.js` (copy from `config.example.js`).
 
 ## Common Tasks
 
-- **Add a new stat to Dashboard**: add `<div class="stat-card">` to `#stats-grid` in `index.html`, cache the element ID in `app.js`, add a line in `renderDashboard()`
-- **Add a new archetype**: append an object to the `ARCHETYPES` array in `app.js` with `name`, `cards[8]`, and `key` card
-- **Add a new tab**: add `<button class="tab-btn" data-tab="newtab">` to `#tab-bar`, add `<div class="tab-panel" id="tab-newtab">`, add handler in the tab loop
+- **Add a card role/tag**: edit `CARD_ROLES` in `card-roles.js` — the suggestion engine reads `role`, `tags`, `air`, `splash`, `targeting`, `cycle`
+- **Add an archetype**: append to `META_DECKS` in `meta-decks.js`; the self-check at the bottom of that file runs under `node meta-decks.js` and throws on slot illegality
+- **Add a hero**: append to `HEROES` in `card-data.js` AND the table in `deck-rules.md` — the API can't confirm hero releases, so both are hand-maintained
+- **Add a tab**: add `<button class="tab-btn" data-tab="newtab">` to `#tab-bar`, add `<div class="tab-panel" id="tab-newtab">`, add a `renderNewTab()` called from `loadPlayer()`
 - **Change card icon source**: the API returns real CDN URLs in `iconUrls.medium` — don't override with hardcoded URLs
 - **Push**: `git push origin main` (HTTPS with token auth works if SSH isn't configured)
 - **Do not append AI co-author trailers to commit messages** — commits credit the human user, not the agent.

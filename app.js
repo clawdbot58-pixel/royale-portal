@@ -30,6 +30,15 @@ var mergedCards = [];
 var currentPlayerTag = "";
 var selectedRarities = new Set();  // empty = show all
 
+// Deck builder + suggestion state
+var currentPlayerData = null;
+var currentDeck   = [];   // [{name, slot}] — 8 entries
+var currentTower  = null; // equipped tower troop name
+var currentFavCard = null;
+var activeTab     = "collection";
+var statusFilter  = "all";
+var suggMode      = "all";
+
 // Image URL overrides for cards whose API CDN URLs are broken/missing
 var CARD_IMG_OVERRIDES = {
   "ronin": "https://cdns3.royaleapi.com/cdn-cgi/image/w=150,h=180,format=auto/static/img/cards/v10-9f6caa5e/ronin.png",
@@ -55,6 +64,17 @@ var searchInput  = document.getElementById("search-input");
 var countLabel   = document.getElementById("count-label");
 var msBtn       = document.getElementById("rarity-btn");
 var msDropdown  = document.getElementById("rarity-dropdown");
+var statusSelect  = document.getElementById("status-select");
+var tabBar        = document.getElementById("tab-bar");
+var deckSlotsEl   = document.getElementById("deck-slots");
+var deckSummaryEl = document.getElementById("deck-summary");
+var deckCheckEl   = document.getElementById("deck-check");
+var towerSelect   = document.getElementById("tower-select");
+var deckResetBtn  = document.getElementById("deck-reset");
+var pickListEl    = document.getElementById("deck-pick-list");
+var suggestionsEl = document.getElementById("suggestions");
+var suggSummaryEl = document.getElementById("sugg-summary");
+var suggModeEl    = document.getElementById("sugg-mode");
 
 // --------------- Init ---------------
 if (typeof DEFAULT_PLAYER_TAG !== "undefined" && DEFAULT_PLAYER_TAG) {
@@ -116,7 +136,7 @@ function debugDump() { return debugLog.join("\n"); }
 // --------------- API ---------------
 async function apiFetch(path) {
   if (location.protocol === "file:") {
-    throw new Error("Run: cd ~/Documents/royal-portal && python3 serve.py\nThen open http://localhost:8080/");
+    throw new Error("Run: cd ~/Documents/royal-portal && python3 serve.py\nThen open http://localhost:8090/");
   }
   var resp;
   try {
@@ -209,6 +229,8 @@ function buildMergedCards(playerData) {
       maxLevel: maxLv,
       count: pc.count != null ? pc.count : 0,
       owned: !!pc.level,
+      evolutionLevel: pc.evolutionLevel || 0,
+      maxEvolutionLevel: pc.maxEvolutionLevel != null ? pc.maxEvolutionLevel : (db.maxEvolutionLevel || 0),
       type: db.type || "card",
     });
   });
@@ -268,6 +290,13 @@ async function loadPlayer(tag) {
 
     currentPlayerTag = sanitizeTag(tag) || tag;
     buildMergedCards(data);
+    currentPlayerData = data;
+    currentFavCard = data.currentFavouriteCard ? String(data.currentFavouriteCard.name).trim() : null;
+    currentTower = (data.currentDeckSupportCards && data.currentDeckSupportCards[0])
+      ? String(data.currentDeckSupportCards[0].name).trim() : null;
+    currentDeck = (data.currentDeck || []).map(function(c) {
+      return { name: String(c.name).trim(), slot: "normal" };
+    });
 
     pnameEl.textContent = data.name || "—";
     ptagEl.textContent = currentPlayerTag;
@@ -278,6 +307,8 @@ async function loadPlayer(tag) {
     playerBar.classList.remove("hidden");
 
     renderCards();
+    renderDeckBuilder();
+    renderSuggestions();
     debugLevels();
     showContent();
     cacheStatus.classList.add("hidden");
@@ -335,6 +366,21 @@ function renderCards() {
     cards = cards.filter(function(c) {
       if (c.type === "tower") return showTower;
       return selectedRarities.has(c.rarity);
+    });
+  }
+
+  // Filter by collection status: owned, undiscovered, evolution, hero
+  if (statusFilter !== "all") {
+    cards = cards.filter(function(c) {
+      var f = cardFlags(c);
+      switch (statusFilter) {
+        case "owned":        return c.owned;
+        case "undiscovered": return !c.owned;
+        case "evo-capable":  return f.evoMax > 0;
+        case "evo-unlocked": return f.evoUnlocked;
+        case "hero-capable": return f.heroCapable;
+      }
+      return true;
     });
   }
 
@@ -418,9 +464,10 @@ function renderCards() {
     if (card.name === "Ronin") debug("Ronin img", {original: rawImg, proxied: img, fallback: fallback.substring(0,60)});
     var isMaxed = owned && lv >= maxLv;
     var color  = rarityColor(r);
+    var f      = cardFlags(card);
 
     var div = document.createElement("div");
-    div.className = "card-item rarity-" + r + (owned ? " owned" : "") + (isMaxed ? " maxed" : "") + (card.type === "tower" ? " tower-type" : "");
+    div.className = "card-item rarity-" + r + (owned ? " owned" : "") + (isMaxed ? " maxed" : "") + (card.type === "tower" ? " tower-type" : "") + (f.evoMax > 0 ? " evo-card" : "") + (f.heroCapable ? " hero-card" : "") + (!owned ? " undiscovered" : "");
 
     // Card body text (for owned non-maxed cards, including tower troops)
     var bodyExtraHtml = "";
@@ -432,6 +479,19 @@ function renderCards() {
 
       bodyExtraHtml += '<div class="ci-lv">Lv' + lv + '</div>';
       bodyExtraHtml += '<div class="ci-bar' + (canUp ? ' full' : '') + '"><div class="ci-fill" style="width:' + pctNext + '%"></div></div>';
+    }
+
+    // Evolution / hero / role badges — the collection shows what the player has
+    if (f.evoMax > 0) {
+      bodyExtraHtml += '<div class="ci-badge ' + (f.evoUnlocked ? "ci-badge-on" : "ci-badge-off") + '">' +
+        '<i class="fa-solid fa-bolt" aria-hidden="true"></i> Evo ' + f.evoLevel + '/' + f.evoMax + '</div>';
+    }
+    if (f.heroCapable) {
+      bodyExtraHtml += '<div class="ci-badge ci-hero">' +
+        '<i class="fa-solid fa-star" aria-hidden="true"></i> Hero +' + (f.hero ? f.hero.abilityCost : 0) + '⚡</div>';
+    }
+    if (f.role && f.role !== "unknown") {
+      bodyExtraHtml += '<div class="ci-role">' + f.role + '</div>';
     }
 
     div.innerHTML =
@@ -523,6 +583,230 @@ document.addEventListener("click", function() {
 
 sortSelect.addEventListener("change", renderCards);
 searchInput.addEventListener("input", renderCards);
+
+
+// --------------- Deck Builder ---------------
+function deckIndex() {
+  var idx = {};
+  mergedCards.forEach(function(c) { idx[c.name] = c; });
+  return idx;
+}
+
+function deckCardObjs() {
+  var idx = deckIndex();
+  return currentDeck.map(function(d) { return idx[d.name]; }).filter(Boolean);
+}
+
+// Slot capacity + "only cards that belong in a slot may occupy it".
+function slotViolations() {
+  var idx = deckIndex();
+  var counts = { champion: 0, evolution: 0, hero: 0, wild: 0 };
+  var REASON = {
+    champion: "champion cards only",
+    evolution: "evolution cards only",
+    hero: "hero-capable cards only",
+    wild: "champion, hero, or evolution cards only",
+  };
+  var v = [];
+  currentDeck.forEach(function(d) {
+    var c = idx[d.name];
+    if (!c) return;
+    if (counts[d.slot] === undefined) return;   // normal slot accepts anything
+    var f = cardFlags(c);
+    var ok = d.slot === "champion" ? f.isChampion
+      : d.slot === "evolution" ? f.evoCapable
+      : d.slot === "hero" ? f.heroCapable
+      : (f.isChampion || f.heroCapable || f.evoCapable);
+    if (!ok) { v.push(d.name + " cannot go in the " + d.slot + " slot (" + REASON[d.slot] + ")"); return; }
+    counts[d.slot]++;
+  });
+  Object.keys(counts).forEach(function(s) {
+    if (counts[s] > 1) v.push("Only one card can occupy the " + s + " slot (has " + counts[s] + ")");
+  });
+  return v;
+}
+
+function slotOptions(sel) {
+  return SLOT_RULES.slots.map(function(s) {
+    return '<option value="' + s + '"' + (s === sel ? " selected" : "") + ">" + s + "</option>";
+  }).join("");
+}
+
+function renderDeckBuilder() {
+  if (!deckSlotsEl) return;
+  var idx = deckIndex();
+
+  if (towerSelect) {
+    towerSelect.innerHTML = TOWER_TROOPS.map(function(t) {
+      var c = idx[t];
+      var sel = t === currentTower ? " selected" : "";
+      return '<option value="' + t + '"' + sel + ">" + t +
+        (c && c.owned ? " (Lv" + c.level + ")" : " (not owned)") + "</option>";
+    }).join("");
+  }
+
+  deckSlotsEl.innerHTML = currentDeck.map(function(d, i) {
+    var c = idx[d.name];
+    var f = c ? cardFlags(c) : null;
+    var img = c ? proxyImg(c.iconUrls && c.iconUrls.medium ? c.iconUrls.medium : "", d.name) : "";
+    var cls = f ? (f.isChampion ? " slot-champion" : f.heroCapable ? " slot-hero" : f.evoUnlocked ? " slot-evo" : "") : "";
+    var marks = "";
+    if (f) {
+      if (f.evoUnlocked) marks += ' <i class="fa-solid fa-bolt" aria-hidden="true"></i>';
+      if (f.heroCapable) marks += ' <i class="fa-solid fa-star" aria-hidden="true"></i>';
+    }
+    return '<div class="deck-slot' + cls + '">' +
+      '<img src="' + img + '" alt="' + d.name + '" loading="lazy" />' +
+      '<div class="ds-name">' + d.name + marks + "</div>" +
+      '<div class="ds-meta">' + (c && c.owned ? "Lv" + c.level : "not owned") +
+        " · " + (c ? c.elixirCost : "?") + "⚡</div>" +
+      '<select class="ds-slot" data-i="' + i + '">' + slotOptions(d.slot) + "</select>" +
+      '<button class="ds-remove" data-i="' + i + '" title="Remove from deck">' +
+        '<i class="fa-solid fa-xmark" aria-hidden="true"></i></button>' +
+    "</div>";
+  }).join("") || '<div class="empty-state">No cards in the deck</div>';
+
+  var cards = deckCardObjs();
+  var avg = cards.length
+    ? (cards.reduce(function(a, c) { return a + (typeof c.elixirCost === "number" ? c.elixirCost : 0); }, 0) / cards.length).toFixed(2)
+    : "0.00";
+  var specials = assignSlots(cards).specials;
+  if (deckSummaryEl) {
+    deckSummaryEl.innerHTML = "<strong>" + cards.length + " / " + DECK_SIZE + " cards</strong>" +
+      "<span>avg elixir " + avg + "</span>" +
+      "<span>tower: " + (currentTower || "—") + "</span>" +
+      "<span>special slots: " + (specials.length
+        ? specials.map(function(s) { return s.name + " → " + s.slot; }).join(", ")
+        : "none") + "</span>";
+  }
+
+  var v = deckViolations(cards, currentTower).concat(slotViolations());
+  var notes = deckNotes(cards);
+  if (deckCheckEl) {
+    deckCheckEl.className = "deck-check " + (v.length ? "has-issues" : (notes.length ? "has-notes" : "ok"));
+    deckCheckEl.innerHTML = v.length
+      ? "<h3>Rules violated</h3><ul>" + v.map(function(x) { return "<li>" + x + "</li>"; }).join("") + "</ul>"
+      : "<h3>Legal deck</h3><p>8 cards, slot ceilings respected, tower troop equipped.</p>" +
+        (notes.length ? '<div class="deck-note"><h4>Activation limits</h4><ul>' + notes.map(function(x) { return "<li>" + x + "</li>"; }).join("") + "</ul></div>" : "");
+  }
+
+  var inDeck = {};
+  currentDeck.forEach(function(d) { inDeck[d.name] = true; });
+  var picks = mergedCards.filter(function(c) { return c.owned && !inDeck[c.name]; });
+  if (pickListEl) {
+    pickListEl.innerHTML = picks.map(function(c) {
+      var f = cardFlags(c);
+      var m = [];
+      if (f.evoUnlocked) m.push("evo " + f.evoLevel + "/" + f.evoMax);
+      if (f.heroCapable) m.push("hero");
+      if (f.isChampion) m.push("champion");
+      if (f.role) m.push(f.role);
+      return '<button class="pick" data-name="' + c.name + '">' +
+        '<img src="' + proxyImg(c.iconUrls.medium, c.name) + '" alt="" loading="lazy" />' +
+        "<span>" + c.name + "</span>" +
+        '<span class="pick-meta">Lv' + c.level + " · " + c.elixirCost + "⚡" +
+          (m.length ? " · " + m.join(" · ") : "") + "</span>" +
+      "</button>";
+    }).join("") || '<div class="empty-state">Nothing left to add</div>';
+  }
+}
+
+// --------------- Suggestions ---------------
+function renderSuggestions() {
+  if (!suggestionsEl) return;
+  var idx = deckIndex();
+  var ranked = rankArchetypes(idx, currentFavCard);
+  if (suggMode !== "all") ranked = ranked.filter(function(a) { return a.meta === suggMode || (a.modes && a.modes.indexOf(suggMode) !== -1); });
+
+  var ownedCount = mergedCards.filter(function(c) { return c.owned; }).length;
+  if (suggSummaryEl) {
+    suggSummaryEl.textContent = ranked.length + " archetypes · " + ownedCount + " cards owned · favourite: " + (currentFavCard || "—");
+  }
+
+  suggestionsEl.innerHTML = ranked.slice(0, 10).map(function(a) {
+    var plan = deckUpgradePlan(a, idx, cardsToMax, goldToMax).slice(0, 6);
+    return '<div class="sugg-card' + (a.violations.length ? " sugg-warn" : "") + '">' +
+      '<div class="sugg-top">' +
+        '<span class="sugg-tier tier-' + a.tier + '">' + a.tier + "</span>" +
+        '<span class="sugg-name">' + a.name + "</span>" +
+        '<span class="sugg-score">' + a.score + "</span>" +
+      "</div>" +
+      '<div class="sugg-tags">' + a.tags.map(function(t) { return '<span class="tag">' + t + "</span>"; }).join("") + "</div>" +
+      '<div class="sugg-stats">' +
+        "<span>" + a.owned.length + "/8 owned</span>" +
+        "<span>avg Lv " + a.avgLevel + "</span>" +
+        "<span>tower: " + a.tower + "</span>" +
+        (a.evoUnlocked ? "<span>evos " + a.evoUnlocked + "</span>" : "") +
+        (a.heroCapable ? "<span>heroes " + a.heroCapable + "</span>" : "") +
+        (a.modes.length > 1 ? "<span>" + a.modes.join(" · ") + "</span>" : "") +
+      "</div>" +
+      '<div class="sugg-cards">' + a.cards.map(function(n) {
+        var c = idx[n];
+        var on = c && c.owned;
+        return '<span class="chip ' + (on ? "chip-on" : "chip-off") + '">' + n + (on ? "" : " +") + "</span>";
+      }).join("") + "</div>" +
+      (a.win ? '<div class="sugg-win">' + a.win + "</div>" : "") +
+      (plan.length ? '<div class="sugg-plan"><h4>To make it work</h4><ul>' + plan.map(function(p) {
+        return "<li>" + p.name + " — " + p.need +
+          (p.cards != null ? " · " + p.cards + " cards · " + p.gold + " gold" : "") + "</li>";
+      }).join("") + "</ul></div>" : "") +
+      (a.violations.length ? '<div class="sugg-viol">' + a.violations.join("; ") + "</div>" : "") +
+      (a.notes.length ? '<div class="sugg-note">' + a.notes.join("; ") + "</div>" : "") +
+    "</div>";
+  }).join("") || '<div class="empty-state">No archetypes match this mode.</div>';
+}
+
+// --------------- Tabs ---------------
+function switchTab(name) {
+  activeTab = name;
+  document.querySelectorAll("#tab-bar .tab-btn").forEach(function(b) {
+    b.classList.toggle("active", b.dataset.tab === name);
+  });
+  document.querySelectorAll(".tab-panel").forEach(function(p) {
+    p.classList.toggle("active", p.id === "tab-" + name);
+  });
+}
+
+// --------------- New events ---------------
+statusSelect.addEventListener("change", function() { statusFilter = statusSelect.value; renderCards(); });
+suggModeEl.addEventListener("change", function() { suggMode = suggModeEl.value; renderSuggestions(); });
+towerSelect.addEventListener("change", function() { currentTower = towerSelect.value; renderDeckBuilder(); });
+
+deckResetBtn.addEventListener("click", function() {
+  if (currentPlayerData && currentPlayerData.currentDeck) {
+    currentDeck = currentPlayerData.currentDeck.map(function(c) {
+      return { name: String(c.name).trim(), slot: "normal" };
+    });
+    renderDeckBuilder();
+  }
+});
+
+deckSlotsEl.addEventListener("change", function(e) {
+  var i = e.target.dataset.i;
+  if (i === undefined || !currentDeck[i]) return;
+  currentDeck[i].slot = e.target.value;
+  renderDeckBuilder();
+});
+
+deckSlotsEl.addEventListener("click", function(e) {
+  var btn = e.target.closest(".ds-remove");
+  if (!btn) return;
+  currentDeck.splice(Number(btn.dataset.i), 1);
+  renderDeckBuilder();
+});
+
+pickListEl.addEventListener("click", function(e) {
+  var btn = e.target.closest(".pick");
+  if (!btn) return;
+  if (currentDeck.length >= DECK_SIZE) return;   // remove something first
+  currentDeck.push({ name: btn.dataset.name, slot: "normal" });
+  renderDeckBuilder();
+});
+
+tabBar.addEventListener("click", function(e) {
+  var btn = e.target.closest(".tab-btn");
+  if (btn) switchTab(btn.dataset.tab);
+});
 
 // --------------- Auto-load ---------------
 if (typeof DEFAULT_PLAYER_TAG !== "undefined" && DEFAULT_PLAYER_TAG) {

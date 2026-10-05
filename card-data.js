@@ -132,3 +132,46 @@ var GOLD_PER_LEVEL = [
 // ── Max level ──
 var MAX_LEVELS = { common: 16, rare: 16, epic: 16, legendary: 16, champion: 16 };
 var START_LEVELS = { common: 1, rare: 3, epic: 6, legendary: 9, champion: 11 };
+
+// ── Deck slot rules (verified from the 16 Mar 2026 update) ──
+// Deck = 8 cards. Special slots: 1 champion, 1 evolution, 1 hero, 1 wild.
+// The wild slot accepts a champion, a hero, OR an evolution card, so the
+// per-deck ceilings are 2 champions, 2 heroes, 2 evolutions. A special card
+// placed in a normal slot does not get its special behaviour.
+var DECK_SIZE = 8;
+var SLOT_RULES = {
+  maxChampions: 2,
+  maxHeroes: 2,
+  maxEvolutions: 2,
+  slots: ["champion", "evolution", "hero", "wild", "normal"],
+  unlockArena: { champion: 5, hero: 5, evolution: 3, wild: 10 },
+  evoShardsToUnlock: 6,
+  heroShardsToUnlock: 200,
+};
+
+// ── Heroes ──
+// The developer API does NOT expose hero cards (no hero rarity, no hero names),
+// so hero availability is modelled here from the released hero list. `base` is
+// the exact API card name of the card the hero form belongs to. Heroes unlock
+// at 200 hero shards and upgrade with the base card's rarity wild cards.
+var HEROES = [
+  { base: "Knight",         abilityCost: 2, ability: "Triumphant Taunt — gains a shield and taunts nearby enemies", released: "2025-12-01" },
+  { base: "Giant",          abilityCost: 2, ability: "Heroic Hurl — throws the highest-HP enemy troop across the arena", released: "2025-12-01" },
+  { base: "Mini P.E.K.K.A", abilityCost: 1, ability: "Breakfast Boost — eats pancakes to level up", released: "2025-12-01" },
+  { base: "Musketeer",      abilityCost: 3, ability: "Trusty Turret — spawns a rapid-firing turret in front", released: "2025-12-01" },
+  { base: "Ice Golem",      abilityCost: 2, ability: "Snowstorm — blizzard damages and slows nearby enemies", released: "2026-01-05" },
+  { base: "Wizard",         abilityCost: 1, ability: "Fiery Flight — launches and throws fire tornadoes, pulling enemies centre", released: "2026-01-05" },
+  { base: "Goblins",        abilityCost: 1, ability: "Banner Brigade — last goblin standing drops a banner, calls reinforcements", released: "2026-02-02" },
+  { base: "Mega Minion",    abilityCost: 2, ability: "Wounding Warp — warps to the lowest-HP enemy, reduced tower damage", released: "2026-02-02" },
+  { base: "Barbarian Barrel", abilityCost: 1, ability: "Rowdy Reroll — barrels down the lane a second time", released: "2026-03-02" },
+  { base: "Magic Archer",   abilityCost: 2, ability: "Triple Threat — summons a decoy, darts back, triple shot on next attack", released: "2026-03-02" },
+  { base: "Balloon",        abilityCost: 2, ability: "Coffin Cadet — a Skeletrooper soars to the nearest ground enemy", released: "2026-04-06" },
+  { base: "Bowler",         abilityCost: 2, ability: "Stone Swish — plants his feet, throws boulders with increased range", released: "2026-05-04" },
+  { base: "Dark Prince",    abilityCost: 3, ability: "Destructive Dismount — dismount damage, attacks on foot, Rhino charges buildings", released: "2026-05-04" },
+  { base: "Tombstone",      abilityCost: 5, ability: "Regal Revive — Tomb Queen rises from the earth, targets buildings", released: "2026-06-01" },
+  { base: "Berserker",      abilityCost: 3, ability: "Savage Survival — bear spirit, rapid attacks, HP floor at 1, reduced tower damage", released: "2026-08-03" },
+  { base: "Valkyrie",       abilityCost: 3, ability: "Wild Whirlwind — spins rapidly, more damage and speed, takes less damage", released: "2026-08-03" },
+];
+
+// ── Tower troops (support cards, exactly 1 equipped, not part of the 8) ──
+var TOWER_TROOPS = ["Tower Princess", "Cannoneer", "Dagger Duchess", "Royal Chef"];

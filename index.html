@@ -3,7 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#1a1b2e" />
   <title>Royale Portal — Card Collection</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" crossorigin="anonymous" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -11,18 +14,18 @@
   <header class="hero">
     <div class="container">
       <div class="hero-top">
-        <h1>🏆 Royale Portal</h1>
+        <h1><i class="fa-solid fa-crown" aria-hidden="true"></i> Royale Portal</h1>
         <form id="lookup-form" class="lookup-form">
           <input type="text" id="tag-input" placeholder="#92LCJ898U" required />
           <button type="submit" class="btn-primary">Search</button>
-          <button type="button" id="mine-btn" class="btn-secondary">👤 Mine</button>
+          <button type="button" id="mine-btn" class="btn-secondary"><i class="fa-solid fa-user" aria-hidden="true"></i> Mine</button>
         </form>
       </div>
       <div id="player-bar" class="player-bar hidden">
         <span id="pname" class="pname"></span>
         <span id="ptag" class="ptag"></span>
         <span id="pstats" class="pstats"></span>
-        <span id="cache-status" class="cache-status hidden">💾 Caching images…</span>
+        <span id="cache-status" class="cache-status hidden">Caching images…</span>
       </div>
     </div>
   </header>
@@ -39,30 +42,122 @@
     </div>
 
     <div id="content" class="hidden">
-      <div class="controls">
-        <div class="rarity-ms" id="rarity-ms">
-          <button class="ms-btn" id="rarity-btn">Rarity ▾</button>
-          <div class="ms-dropdown" id="rarity-dropdown">
-            <label class="ms-opt"><input type="checkbox" value="all" checked /> <span>All</span></label>
-            <label class="ms-opt"><input type="checkbox" value="common" /> <span>Common</span></label>
-            <label class="ms-opt"><input type="checkbox" value="rare" /> <span>Rare</span></label>
-            <label class="ms-opt"><input type="checkbox" value="epic" /> <span>Epic</span></label>
-            <label class="ms-opt"><input type="checkbox" value="legendary" /> <span>Legendary</span></label>
-            <label class="ms-opt"><input type="checkbox" value="champion" /> <span>Champion</span></label>
-            <label class="ms-opt"><input type="checkbox" value="tower" /> <span>Tower Troop</span></label>
+
+      <div id="tab-bar" class="tab-bar">
+        <button class="tab-btn active" data-tab="collection">Collection</button>
+        <button class="tab-btn" data-tab="deck">Deck Builder</button>
+        <button class="tab-btn" data-tab="suggestions">Deck Suggestions</button>
+        <button class="tab-btn" data-tab="rules">Deck Rules</button>
+      </div>
+
+      <div class="tab-panel active" id="tab-collection">
+        <div class="controls">
+          <div class="rarity-ms" id="rarity-ms">
+            <button class="ms-btn" id="rarity-btn">Rarity ▾</button>
+            <div class="ms-dropdown" id="rarity-dropdown">
+              <label class="ms-opt"><input type="checkbox" value="all" checked /> <span>All</span></label>
+              <label class="ms-opt"><input type="checkbox" value="common" /> <span>Common</span></label>
+              <label class="ms-opt"><input type="checkbox" value="rare" /> <span>Rare</span></label>
+              <label class="ms-opt"><input type="checkbox" value="epic" /> <span>Epic</span></label>
+              <label class="ms-opt"><input type="checkbox" value="legendary" /> <span>Legendary</span></label>
+              <label class="ms-opt"><input type="checkbox" value="champion" /> <span>Champion</span></label>
+              <label class="ms-opt"><input type="checkbox" value="tower" /> <span>Tower Troop</span></label>
+            </div>
+          </div>
+          <select id="status-select">
+            <option value="all">All cards</option>
+            <option value="owned">Owned</option>
+            <option value="undiscovered">Undiscovered</option>
+            <option value="evo-capable">Evolution-capable</option>
+            <option value="evo-unlocked">Evolutions unlocked</option>
+            <option value="hero-capable">Hero-capable</option>
+          </select>
+          <select id="sort-select">
+            <option value="upgrade">Upgrade Priority</option>
+            <option value="level">Level ↓</option>
+            <option value="rarity-group">Rarity + Level</option>
+          </select>
+          <input type="text" id="search-input" placeholder="Search cards…" />
+          <span id="count-label" class="count-label"></span>
+        </div>
+        <div id="card-grid" class="card-grid">
+          <div class="empty-state">Enter a player tag to see your cards</div>
+        </div>
+      </div>
+
+      <div class="tab-panel" id="tab-deck">
+        <div class="deck-head">
+          <div class="deck-summary" id="deck-summary"></div>
+          <div class="deck-actions">
+            <button class="btn-secondary" id="deck-reset"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i> Use my current deck</button>
+            <label class="tower-pick">Tower troop
+              <select id="tower-select"></select>
+            </label>
           </div>
         </div>
-        <select id="sort-select">
-          <option value="upgrade">Upgrade Priority</option>
-          <option value="level">Level ↓</option>
-          <option value="rarity-group">Rarity + Level</option>
-        </select>
-        <input type="text" id="search-input" placeholder="🔍 Search cards…" />
-        <span id="count-label" class="count-label"></span>
+        <div id="deck-slots" class="deck-slots"></div>
+        <div id="deck-check" class="deck-check"></div>
+        <div class="deck-picker">
+          <h3>Add a card</h3>
+          <div id="deck-pick-list" class="pick-list"></div>
+        </div>
       </div>
-      <div id="card-grid" class="card-grid">
-        <div class="empty-state">Enter a player tag to see your cards</div>
+
+      <div class="tab-panel" id="tab-suggestions">
+        <div class="sugg-head">
+          <span id="sugg-summary" class="sugg-summary"></span>
+          <select id="sugg-mode">
+            <option value="all">All modes</option>
+            <option value="ladder">Ladder</option>
+            <option value="clanwars">Clan Wars</option>
+            <option value="challenge">Challenges</option>
+          </select>
+        </div>
+        <div id="suggestions" class="suggestions"></div>
       </div>
+
+      <div class="tab-panel" id="tab-rules">
+        <div class="rules-doc">
+          <h2>How decks work</h2>
+          <p>A deck is <strong>8 cards</strong> plus <strong>1 tower troop</strong> (the tower troop is not one of the 8).
+             Four of the eight slots are special slots; a special card only gets its special behaviour when it sits in a slot that allows it.</p>
+          <table class="rules-table">
+            <thead><tr><th>Slot</th><th>Holds</th><th>Unlocks at</th></tr></thead>
+            <tbody>
+              <tr><td>Champion slot</td><td>1 champion card</td><td>Arena 5</td></tr>
+              <tr><td>Evolution slot</td><td>1 evolution card</td><td>Arena 3 (600 trophies)</td></tr>
+              <tr><td>Hero slot</td><td>1 hero card</td><td>Arena 5 (moved from Arena 15 on 23 Feb 2026)</td></tr>
+              <tr><td>Wild slot</td><td>a champion, a hero, <em>or</em> an evolution</td><td>Arena 10 (3000 trophies)</td></tr>
+              <tr><td>4 normal slots</td><td>any card, no special behaviour</td><td>—</td></tr>
+            </tbody>
+          </table>
+          <h3>Per-deck ceilings</h3>
+          <ul>
+            <li><strong>Max 2 champions</strong> — champion slot + wild slot.</li>
+            <li><strong>Max 2 heroes</strong> — hero slot + wild slot. A hero and a champion can coexist (1 each).</li>
+            <li><strong>Max 2 evolutions</strong> — evolution slot + wild slot.</li>
+            <li>Special cards total <strong>≤ 4</strong>; anything beyond that sits in a normal slot and behaves like the plain card.</li>
+            <li>Every card in the deck must be distinct, and you must own it.</li>
+          </ul>
+          <h3>Unlocks</h3>
+          <ul>
+            <li><strong>Evolution</strong>: 6 Evolution Shards unlocks a card's evolved form; evolution levels run 1–3. Shards come from Pass Royale, challenges, events, shop, Lucky Chests, Trophy Road, Evolution Boxes.</li>
+            <li><strong>Hero</strong>: 200 Hero Shards unlocks a hero; heroes upgrade with the base card's rarity wild cards. Since 4 Aug 2026 every hero ability is single-use.</li>
+            <li><strong>Evolved form activation</strong>: an evolution card must be played a number of times before its evolved form is released; the cycle repeats after each use.</li>
+            <li><strong>Hero ability</strong>: cast from above the hand, costs elixir on top of the card's own cost, and lasts only while the hero is alive. The deck's average elixir counts only the base cost.</li>
+            <li><strong>Tower troop</strong>: exactly one equipped (Tower Princess, Cannoneer, Dagger Duchess, Royal Chef). It is not part of the 8 cards and levels with its own rarity's wild cards.</li>
+          </ul>
+          <h3>Card roles used for suggestions</h3>
+          <p>Every card is classified as win-condition, support, tank, swarm, air-defense, building, spell, cycle, splash, control, air-swarms, tank-killer or utility, with tags for air/ground attack, splash, targeting, cycle cost. A legal ladder deck needs a win path, at least one spell, and two air answers; cycle decks keep average elixir under 3.5.</p>
+          <h3>Hero cards and the API</h3>
+          <p>The developer API does not expose hero cards — no hero rarity, no hero names. Hero availability here is modelled from the 16 released hero forms, matched to the base card you own. Hero unlock state is not readable from the API, so the UI shows hero-capable base cards and marks hero unlock as unknown.</p>
+          <p class="rules-src">Rules verified from the Supercell news post “Upcoming Changes to Clash Royale!” (20 Feb 2026), the Supercell support pages for Card Evolution and Heroes, and the Clash Royale wiki Heroes page. Sources:
+            <a href="https://supercell.com/en/games/clashroyale/blog/news/upcoming-changes-to-clash-royale/" target="_blank">Supercell</a> ·
+            <a href="https://support.clashroyale.com/hc/en-us/articles/49484923993883-Card-Evolution" target="_blank">Card Evolution</a> ·
+            <a href="https://clashroyale.fandom.com/wiki/Heroes" target="_blank">Heroes</a></p>
+        </div>
+      </div>
+
     </div>
 
   </main>
@@ -77,6 +172,9 @@
   <script src="player-config.js"></script>
   <script src="config.js"></script>
   <script src="card-data.js"></script>
+  <script src="card-roles.js"></script>
+  <script src="meta-decks.js"></script>
+  <script src="deck-engine.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
