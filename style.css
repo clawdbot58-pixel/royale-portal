@@ -295,6 +295,7 @@ button i { margin-right: 5px; }
   border: 1px solid var(--border);
   border-left: 3px solid var(--border);
   border-radius: var(--radius-sm);
+  --card-opacity: 1;
   overflow: hidden;
   transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
               border-color 0.25s,
@@ -304,7 +305,7 @@ button i { margin-right: 5px; }
 }
 @keyframes cardIn {
   from { opacity: 0; transform: translateY(10px) scale(0.97); }
-  to   { opacity: 1; transform: translateY(0) scale(1); }
+  to   { opacity: var(--card-opacity, 1); transform: translateY(0) scale(1); }
 }
 
 .card-item:hover {
@@ -347,11 +348,11 @@ button i { margin-right: 5px; }
 }
 
 .card-item:not(.owned) {
-  opacity: 0.35;
+  --card-opacity: 0.35;
   filter: grayscale(0.7);
 }
 .card-item:not(.owned):hover {
-  opacity: 0.55;
+  --card-opacity: 0.55;
   filter: grayscale(0.4);
 }
 
@@ -516,7 +517,7 @@ button i { margin-right: 5px; }
 }
 .card-item.evo-card  { border-left-color: var(--accent); }
 .card-item.hero-card { border-left-color: var(--accent2); }
-.card-item.undiscovered { opacity: 0.45; }
+.card-item.undiscovered { --card-opacity: 0.45; }
 
 /* ===== Deck builder ===== */
 .deck-head {
