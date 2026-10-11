@@ -129,6 +129,13 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self.wfile.write(str(e).encode())
             print(f"  502 {label}: {e}", flush=True)
 
+    def end_headers(self):
+        # Static assets (HTML/CSS/JS) are served no-store so a plain reload
+        # never picks up stale JS; images and API keep their own cache rules.
+        if not (self.path.startswith("/img/") or self.path.startswith("/api/")):
+            self.send_header("Cache-Control", "no-store")
+        super().end_headers()
+
     def log_message(self, fmt, *args):
         pass  # silent
 

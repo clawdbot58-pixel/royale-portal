@@ -47,6 +47,7 @@
         <button class="tab-btn active" data-tab="collection">Collection</button>
         <button class="tab-btn" data-tab="deck">Deck Builder</button>
         <button class="tab-btn" data-tab="suggestions">Deck Suggestions</button>
+        <button class="tab-btn" data-tab="battles">Battles</button>
         <button class="tab-btn" data-tab="rules">Deck Rules</button>
       </div>
 
@@ -89,6 +90,8 @@
         <div class="deck-head">
           <div class="deck-summary" id="deck-summary"></div>
           <div class="deck-actions">
+            <button class="btn-secondary" id="deck-autofill"><i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i> Auto-fill</button>
+            <button class="btn-secondary" id="deck-share"><i class="fa-solid fa-link" aria-hidden="true"></i> Copy link</button>
             <button class="btn-secondary" id="deck-reset"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i> Use my current deck</button>
             <label class="tower-pick">Tower troop
               <select id="tower-select"></select>
@@ -97,8 +100,13 @@
         </div>
         <div id="deck-slots" class="deck-slots"></div>
         <div id="deck-check" class="deck-check"></div>
+        <section class="deck-analysis" id="deck-stats" aria-label="Deck statistics"></section>
+        <section class="deck-analysis" id="deck-analysis" aria-label="Deck analysis"></section>
         <div class="deck-picker">
-          <h3>Add a card</h3>
+          <div class="picker-head">
+            <h3>Add a card</h3>
+            <input type="search" id="pick-filter" class="pick-filter" placeholder="Filter by name, role, or a special slot…" aria-label="Filter cards to add" />
+          </div>
           <div id="deck-pick-list" class="pick-list"></div>
         </div>
       </div>
@@ -113,7 +121,35 @@
             <option value="challenge">Challenges</option>
           </select>
         </div>
+        <section class="invest" id="invest" aria-label="Upgrade value">
+          <h3><i class="fa-solid fa-coins" aria-hidden="true"></i> Invest efficiently</h3>
+          <p class="invest-sub">The upgrades that pay off across the most of your best-fit decks.</p>
+          <div id="invest-list" class="invest-list"></div>
+        </section>
         <div id="suggestions" class="suggestions"></div>
+      </div>
+
+      <div class="tab-panel" id="tab-battles">
+        <div class="bat-head">
+          <div id="battles-summary" class="bat-summary"></div>
+          <span id="battles-src" class="bat-src"></span>
+        </div>
+        <section class="bat-block">
+          <h3><i class="fa-solid fa-layer-group" aria-hidden="true"></i> Decks you played</h3>
+          <div id="battles-decks" class="bat-decks"></div>
+        </section>
+        <section class="bat-block">
+          <h3><i class="fa-solid fa-chart-simple" aria-hidden="true"></i> Card win rate</h3>
+          <div id="battles-cards" class="bat-cards"></div>
+        </section>
+        <section class="bat-block">
+          <h3><i class="fa-solid fa-shield-halved" aria-hidden="true"></i> Matchups you faced</h3>
+          <div id="battles-faced" class="bat-faced"></div>
+        </section>
+        <section class="bat-block">
+          <h3><i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i> Recent battles</h3>
+          <div id="battles-list" class="bat-list"></div>
+        </section>
       </div>
 
       <div class="tab-panel" id="tab-rules">
@@ -149,6 +185,13 @@
           </ul>
           <h3>Card roles used for suggestions</h3>
           <p>Every card is classified as win-condition, support, tank, swarm, air-defense, building, spell, cycle, splash, control, air-swarms, tank-killer or utility, with tags for air/ground attack, splash, targeting, cycle cost. A legal ladder deck needs a win path, at least one spell, and two air answers; cycle decks keep average elixir under 3.5.</p>
+          <h3>How a deck is scored</h3>
+          <p>The Deck Builder runs the same 10-point coverage check on every build. Each check carries a weight that adds up to 100, and the score is simply the weight of everything that passes:</p>
+          <table class="rules-table" id="score-table">
+            <thead><tr><th>Check</th><th>Needs</th><th>Weight</th></tr></thead>
+            <tbody></tbody>
+          </table>
+          <p>Grades: <strong>S</strong> 90+ · <strong>A</strong> 80+ · <strong>B</strong> 70+ · <strong>C</strong> 60+ · <strong>D</strong> 45+ · <strong>E</strong> below 45. The score measures composition only — legality (deck size, slot ceilings, ownership) is checked separately and always shown on its own.</p>
           <h3>Hero cards and the API</h3>
           <p>The developer API does not expose hero cards — no hero rarity, no hero names. Hero availability here is modelled from the 16 released hero forms, matched to the base card you own. Hero unlock state is not readable from the API, so the UI shows hero-capable base cards and marks hero unlock as unknown.</p>
           <p class="rules-src">Rules verified from the Supercell news post “Upcoming Changes to Clash Royale!” (20 Feb 2026), the Supercell support pages for Card Evolution and Heroes, and the Clash Royale wiki Heroes page. Sources:
@@ -175,6 +218,7 @@
   <script src="card-roles.js"></script>
   <script src="meta-decks.js"></script>
   <script src="deck-engine.js"></script>
+  <script src="deck-analysis.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

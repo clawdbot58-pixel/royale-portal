@@ -67,6 +67,7 @@ button i { margin-right: 5px; }
   flex-wrap: wrap;
   gap: 0.75rem;
 }
+.hero-top > * { min-width: 0; max-width: 100%; }
 .hero h1 {
   font-size: 1.4rem;
   color: var(--accent);
@@ -75,7 +76,7 @@ button i { margin-right: 5px; }
 
 /* ===== Lookup ===== */
 .lookup-form {
-  display: flex; gap: 0.5rem; align-items: center;
+  display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; min-width: 0;
 }
 .lookup-form input {
   background: var(--surface2);
@@ -86,6 +87,8 @@ button i { margin-right: 5px; }
   color: var(--text);
   outline: none;
   width: 180px;
+  min-width: 0;
+  flex: 0 1 auto;
   transition: border-color 0.2s, box-shadow 0.2s;
 }
 .lookup-form input:focus {
@@ -524,7 +527,10 @@ button i { margin-right: 5px; }
   display: flex; justify-content: space-between; align-items: flex-start;
   gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem;
 }
-.deck-summary { display: flex; flex-direction: column; gap: 2px; font-size: 0.8rem; color: var(--text-muted); }
+.deck-summary {
+  display: flex; flex-direction: row; flex-wrap: wrap; align-items: center;
+  gap: 0.3rem 1rem; font-size: 0.8rem; color: var(--text-muted);
+}
 .deck-summary strong { color: var(--text); font-size: 0.95rem; }
 .deck-actions { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
 .tower-pick { font-size: 0.78rem; color: var(--text-muted); display: flex; flex-direction: column; gap: 4px; }
@@ -543,8 +549,9 @@ button i { margin-right: 5px; }
 .deck-slot img { width: 44px; height: 44px; border-radius: var(--radius-sm); background: var(--bg); }
 .ds-name { font-size: 0.8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ds-meta { font-size: 0.7rem; color: var(--text-muted); }
+.ds-info { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .ds-slot {
-  grid-column: 2 / 4;
+  grid-column: 1 / 4;
   background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm);
   padding: 0.3rem 0.4rem; font-size: 0.72rem; color: var(--text-muted); cursor: pointer; outline: none;
 }
@@ -627,11 +634,325 @@ button i { margin-right: 5px; }
 .rules-table th { color: var(--text); }
 .rules-src { font-size: 0.72rem; margin-top: 1rem; }
 
+/* ===== Deck analysis ===== */
+.da-grade {
+  font-weight: 700; padding: 1px 7px; border-radius: var(--radius-sm);
+  background: rgba(139,141,168,0.15); color: var(--text-muted);
+  align-self: flex-start; width: fit-content;
+}
+.grade-s { background: rgba(240,196,63,0.2); color: var(--accent); }
+.grade-a { background: rgba(61,214,140,0.18); color: var(--success); }
+.grade-b { background: rgba(91,127,255,0.18); color: var(--accent2); }
+.grade-c { background: rgba(240,164,63,0.16); color: var(--warning); }
+.grade-d, .grade-e { background: rgba(224,74,90,0.16); color: var(--accent3); }
+
+.deck-analysis {
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 0.85rem 1rem; margin-bottom: 1rem;
+}
+.da-metrics { display: flex; gap: 1.4rem; flex-wrap: wrap; margin-bottom: 0.85rem; }
+.da-metric { display: flex; flex-direction: column; gap: 1px; min-width: 74px; }
+.da-val { font-size: 1.15rem; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+.da-lbl { font-size: 0.68rem; color: var(--text-muted); text-transform: lowercase; }
+.da-metric.good .da-val { color: var(--success); }
+.da-metric.warn .da-val { color: var(--warning); }
+.da-metric.grade-s .da-val { color: var(--accent); }
+.da-metric.grade-a .da-val { color: var(--success); }
+.da-metric.grade-b .da-val { color: var(--accent2); }
+.da-metric.grade-c .da-val { color: var(--warning); }
+.da-metric.grade-d .da-val, .da-metric.grade-e .da-val { color: var(--accent3); }
+
+.da-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 0.4rem;
+}
+.da-check {
+  display: grid; grid-template-columns: auto 1fr auto; align-items: center;
+  gap: 0.45rem; padding: 0.4rem 0.55rem; border-radius: var(--radius-sm);
+  background: var(--bg); border: 1px solid var(--border); font-size: 0.76rem;
+}
+.da-check i { font-size: 0.8rem; }
+.da-check.ok i { color: var(--success); }
+.da-check.no  i { color: var(--accent3); }
+.da-label { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.da-need { font-size: 0.66rem; color: var(--text-muted); background: var(--surface); border-radius: 4px; padding: 1px 5px; }
+.da-detail {
+  grid-column: 1 / -1; font-size: 0.68rem; color: var(--text-muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.da-check.ok .da-detail { color: rgba(61,214,140,0.75); }
+
+.da-swaps { margin-top: 0.85rem; border-top: 1px solid var(--border); padding-top: 0.7rem; }
+.da-swaps h4 { font-size: 0.78rem; color: var(--text-muted); margin-bottom: 0.45rem; }
+.da-swaps h4 span { font-weight: 400; opacity: 0.7; }
+.da-swaps { display: flex; flex-direction: column; }
+.da-swap {
+  display: grid; grid-template-columns: 30px 1fr auto; align-items: center; gap: 0.55rem;
+  background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 0.35rem 0.5rem; margin-bottom: 0.35rem; cursor: pointer; text-align: left;
+  color: var(--text); font-size: 0.76rem;
+}
+.da-swap:hover { border-color: var(--accent2); }
+.da-swap img { width: 30px; height: 30px; border-radius: 4px; background: var(--surface); }
+.da-swap span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.da-swap strong { color: var(--accent); font-weight: 600; }
+.da-swap em { font-style: normal; font-size: 0.68rem; color: var(--text-muted); }
+
+/* ===== Invest efficiently ===== */
+.invest {
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 0.85rem 1rem; margin-bottom: 1rem;
+}
+.invest h3 { font-size: 0.85rem; color: var(--accent); margin-bottom: 0.15rem; }
+.invest-sub { font-size: 0.74rem; color: var(--text-muted); margin-bottom: 0.6rem; }
+.invest-list { display: flex; flex-direction: column; gap: 0.3rem; }
+.invest-row {
+  display: grid; grid-template-columns: 30px minmax(90px, 1.1fr) minmax(70px, 2fr) auto auto;
+  align-items: center; gap: 0.6rem;
+  background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 0.35rem 0.5rem; cursor: pointer; text-align: left; color: var(--text); font-size: 0.76rem;
+}
+.invest-row:hover { border-color: var(--accent2); }
+.invest-row img { width: 30px; height: 30px; border-radius: 4px; background: var(--surface); }
+.inv-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.inv-bar { height: 6px; background: var(--surface); border-radius: 3px; overflow: hidden; }
+.inv-fill { display: block; height: 100%; background: linear-gradient(90deg, var(--accent2), var(--accent)); border-radius: 3px; }
+.inv-decks { font-size: 0.7rem; color: var(--success); white-space: nowrap; }
+.inv-cost { font-size: 0.68rem; color: var(--text-muted); white-space: nowrap; }
+
+/* ===== Suggestion "use" button ===== */
+.sugg-use {
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  background: rgba(91,127,255,0.14); border: 1px solid rgba(91,127,255,0.4);
+  color: var(--accent2); border-radius: var(--radius-sm);
+  padding: 0.2rem 0.5rem; font-size: 0.7rem; cursor: pointer;
+}
+.sugg-use:hover { background: rgba(91,127,255,0.26); }
+#deck-share.copied { border-color: rgba(61,214,140,0.5); color: var(--success); }
+.rules-table tr.total td { border-bottom: none; color: var(--text); }
+
 @media (max-width: 600px) {
   .deck-slots { grid-template-columns: repeat(2, 1fr); }
   .tab-btn { font-size: 0.78rem; padding: 0.45rem 0.7rem; }
+  .invest-row { grid-template-columns: 26px 1fr auto; }
+  .inv-bar, .inv-cost { display: none; }
+  .da-metrics { gap: 1rem; }
+  .da-val { font-size: 1rem; }
 }
 
 @media (max-width: 400px) {
   .card-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* ===== Battles / win rates ===== */
+.bat-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; flex-wrap: wrap; margin-bottom: 0.9rem; }
+.bat-summary { display: flex; gap: 1.3rem; flex-wrap: wrap; align-items: center; }
+.bat-metric { display: flex; flex-direction: column; gap: 1px; min-width: 74px; }
+.bat-note { font-size: 0.72rem; color: var(--text-muted); flex-basis: 100%; }
+.bat-src { font-size: 0.72rem; color: var(--text-muted); max-width: 32rem; text-align: right; }
+.bat-block {
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 0.85rem 1rem; margin-bottom: 1rem;
+}
+.bat-block h3 { font-size: 0.85rem; color: var(--accent); margin-bottom: 0.7rem; display: flex; gap: 0.45rem; align-items: center; }
+.bat-decks { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 0.6rem; }
+.bat-deck { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 0.6rem 0.7rem; }
+.bd-top { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.5rem; }
+.bd-rec { font-size: 0.8rem; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+.bd-bar { flex: 1; min-width: 60px; height: 6px; background: rgba(255,255,255,0.07); border-radius: 99px; overflow: hidden; }
+.bd-fill { display: block; height: 100%; background: var(--success); }
+.bd-use {
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  background: rgba(91,127,255,0.14); border: 1px solid rgba(91,127,255,0.4);
+  color: var(--accent2); border-radius: var(--radius-sm);
+  padding: 0.2rem 0.55rem; font-size: 0.72rem; cursor: pointer;
+}
+.bd-use:hover { background: rgba(91,127,255,0.26); }
+.bd-cards { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.bd-foot { font-size: 0.7rem; color: var(--text-muted); margin-top: 0.45rem; }
+.bat-cards, .bat-faced { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 0.3rem 1rem; }
+.bat-card, .bat-faced-row { display: flex; align-items: center; gap: 0.5rem; font-size: 0.78rem; padding: 0.25rem 0.25rem; }
+.bat-card img { width: 26px; height: 26px; border-radius: 4px; background: var(--bg); }
+.bc-name, .bf-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 0 1 auto; }
+.bc-nums { font-size: 0.72rem; color: var(--text-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.bat-card.good .bc-nums, .bat-faced-row.good .bc-nums { color: var(--success); }
+.bat-card.bad .bc-nums, .bat-faced-row.bad .bc-nums { color: var(--accent3); }
+.bat-list { display: flex; flex-direction: column; gap: 0.4rem; }
+.bat-row {
+  display: grid; grid-template-columns: 30px 44px 74px minmax(90px, 1.1fr) 92px minmax(0, 2.4fr);
+  gap: 0.5rem; align-items: center; font-size: 0.75rem; padding: 0.4rem 0.5rem;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); cursor: pointer;
+}
+.bat-row:hover { border-color: var(--accent2); }
+.br-res { font-weight: 700; text-align: center; border-radius: 4px; padding: 2px 0; }
+.bat-win .br-res { background: rgba(61,214,140,0.16); color: var(--success); }
+.bat-loss .br-res { background: rgba(224,74,90,0.16); color: var(--accent3); }
+.br-score, .br-time, .br-mode { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.br-opp { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.br-deck { display: flex; gap: 0.25rem; flex-wrap: wrap; min-width: 0; }
+.br-deck .chip { font-size: 0.62rem; padding: 1px 5px; background: rgba(255,255,255,0.05); color: var(--text-muted); border-radius: 4px; }
+.sugg-src { font-size: 0.72rem; color: var(--text-muted); margin-top: 0.7rem; }
+@media (max-width: 700px) {
+  .bat-row { grid-template-columns: 30px 44px minmax(0, 1fr) minmax(0, 1fr); }
+  .br-time, .br-mode { display: none; }
+  .br-deck { grid-column: 1 / -1; }
+  .bat-src { text-align: left; }
+}
+
+/* ===== Deck statistics panel ===== */
+.ds-metrics {
+  display: flex; flex-wrap: wrap; gap: 0.7rem; align-items: center;
+  padding-bottom: 0.75rem; margin-bottom: 0.75rem; border-bottom: 1px solid var(--border);
+}
+.ds-cycle h4, .ds-ladder h4, .ds-ability h4 {
+  font-size: 0.78rem; color: var(--accent); margin: 0 0 0.5rem;
+  display: flex; gap: 0.5rem; align-items: baseline;
+}
+.ds-cycle h4 span, .ds-ability h4 span { font-size: 0.7rem; color: var(--text-muted); font-weight: 400; }
+.ds-cycle { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.85rem; }
+.ds-cycle-card {
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 0.25rem 0.5rem; font-size: 0.74rem;
+}
+.ds-cycle-card img { width: 22px; height: 22px; border-radius: 3px; background: var(--bg); }
+.ds-cycle-card b { color: var(--accent); font-weight: 700; }
+.ds-ladder { margin-bottom: 0.85rem; }
+.ds-rung {
+  display: grid; grid-template-columns: 34px 90px minmax(0, 1fr);
+  gap: 0.6rem; align-items: center; font-size: 0.74rem; padding: 0.12rem 0;
+}
+.ds-rung-cost { color: var(--accent); font-weight: 700; font-variant-numeric: tabular-nums; }
+.ds-rung-bar { height: 7px; background: rgba(255,255,255,0.06); border-radius: 99px; overflow: hidden; }
+.ds-rung-bar > span { display: block; height: 100%; background: linear-gradient(90deg, var(--accent2), var(--accent)); }
+.ds-rung-names { color: var(--text-muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ds-ability-row {
+  display: flex; gap: 0.6rem; align-items: baseline;
+  font-size: 0.75rem; color: var(--text); padding: 0.15rem 0;
+}
+.ds-ability-cost { color: var(--accent2); font-weight: 700; min-width: 34px; font-variant-numeric: tabular-nums; }
+.ds-ability-total { font-size: 0.72rem; color: var(--text-muted); margin-top: 0.4rem; }
+
+/* ===== Special-slot badges on deck cards ===== */
+.ds-badges { grid-column: 1 / 4; display: flex; flex-wrap: wrap; gap: 0.25rem; }
+.ds-badge {
+  display: inline-flex; align-items: center; gap: 0.25rem;
+  font-size: 0.68rem; line-height: 1.6; padding: 0.05rem 0.45rem;
+  letter-spacing: 0.01em;
+  border-radius: 99px; border: 1px solid var(--border);
+  background: rgba(255,255,255,0.04); color: var(--text-muted);
+}
+.ds-badge.b-champion { border-color: var(--rarity-champion); color: var(--rarity-champion); background: rgba(240,196,63,0.08); }
+.ds-badge.b-evo { border-color: var(--accent); color: var(--accent); background: rgba(240,196,63,0.12); }
+.ds-badge.b-hero { border-color: var(--accent2); color: var(--accent2); background: rgba(91,127,255,0.12); }
+.ds-badge.b-wild { border-color: var(--success); color: var(--success); background: rgba(61,214,140,0.1); }
+.ds-badge.b-off { border-style: dashed; }
+.ds-badge.b-role { margin-left: auto; text-transform: capitalize; }
+.ds-badge.b-off { font-style: italic; }
+@media (max-width: 560px) {
+  .deck-slots { grid-template-columns: repeat(2, 1fr); }
+  .ds-rung { grid-template-columns: 30px 54px minmax(0, 1fr); }
+  .ds-badge.b-role { margin-left: 0; }
+}
+
+.ds-slot option.ds-slot-dim { color: var(--text-muted); font-style: italic; }
+.ds-slot option { color: var(--text); }
+
+/* --------------- Deck identity + picker filter --------------- */
+.ds-identity {
+  margin-top: 0.85rem; padding-top: 0.75rem; border-top: 1px solid var(--border);
+}
+.ds-identity h4 { font-size: 0.78rem; color: var(--accent); margin: 0 0 0.5rem; }
+.ds-verdict {
+  font-size: 0.82rem; color: var(--text); background: var(--surface);
+  border: 1px solid var(--border); border-left: 3px solid var(--accent2);
+  border-radius: var(--radius-sm); padding: 0.45rem 0.6rem;
+}
+.ds-verdict.good { border-left-color: var(--success); }
+.ds-verdict.warn { border-left-color: var(--warning); }
+.ds-fit, .ds-free { font-size: 0.75rem; color: var(--text-muted); margin-top: 0.5rem; }
+.ds-fit strong { color: var(--accent); }
+.ds-fit .chip, .ds-free .chip {
+  font-size: 0.68rem; padding: 0 0.4rem; border-radius: 99px;
+  background: rgba(255,255,255,0.05); border: 1px solid var(--border); color: var(--text-muted);
+}
+.ds-free .chip-action { cursor: pointer; border-color: rgba(91,127,255,0.4); color: var(--accent2); }
+.ds-free .chip-action:hover { background: rgba(91,127,255,0.18); }
+.picker-head { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 0.6rem; }
+.picker-head h3 { margin: 0; }
+.pick-filter {
+  flex: 1; min-width: 180px;
+  background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 0.35rem 0.6rem; font-size: 0.78rem; color: var(--text); outline: none;
+}
+.pick-filter:focus { border-color: var(--accent2); }
+
+/* --------------- Rotation timing --------------- */
+.ds-timing {
+  margin-top: 0.85rem; padding-top: 0.75rem; border-top: 1px solid var(--border);
+}
+.ds-timing h4 { font-size: 0.78rem; color: var(--accent); margin: 0 0 0.5rem; }
+.ds-timing-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; }
+.ds-timing-cell {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 0.5rem 0.6rem; display: grid;
+  grid-template-columns: 1fr auto; gap: 0.1rem 0.5rem; align-items: baseline;
+}
+.ds-timing-rate { font-size: 0.68rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.ds-timing-val { font-size: 0.95rem; font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; }
+.ds-timing-sub {
+  grid-column: 1; font-size: 0.66rem; color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.ds-band {
+  font-size: 0.75rem; color: var(--text); margin-top: 0.5rem;
+  padding: 0.35rem 0.6rem; background: var(--surface);
+  border-left: 3px solid var(--accent); border-radius: var(--radius-sm);
+}
+@media (max-width: 640px) { .ds-timing-grid { grid-template-columns: 1fr; } }
+
+/* --------------- Per-card elixir bar --------------- */
+.ds-elixir {
+  grid-column: 1 / 4;
+  display: flex; align-items: center; gap: 0.4rem;
+  font-size: 0.68rem; color: var(--text-muted); font-variant-numeric: tabular-nums;
+}
+.ds-elixir > span {
+  height: 5px; border-radius: 99px; min-width: 6px;
+  background: linear-gradient(90deg, var(--accent2), var(--accent));
+}
+.ds-elixir::before, .ds-elixir::after { content: ""; }
+.ds-elixir { position: relative; }
+.ds-elixir::before {
+  content: ""; position: absolute; left: 0; bottom: 0.55rem; height: 1px; width: 100%;
+  background: var(--border); z-index: -1;
+}
+/* Darker cost = cheaper; warmer cost = expensive. */
+.ds-elixir[title="1"], .ds-elixir[title="2"] > span { background: var(--success); }
+
+/* --------------- Interaction polish --------------- */
+/* One motion rule for the whole app: colour/background/border transitions
+   only, plus a 1px tactile press. Nothing animates width/height/top/left. */
+.btn-secondary, .bd-use, .da-swap, .pick, .sugg-use, .sugg-row .btn-secondary,
+.ds-free .chip-action, .bat-row, .tab-btn, .invest-row, .card-item {
+  transition: background-color 0.15s ease, border-color 0.15s ease,
+              color 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
+}
+.btn-secondary:active, .bd-use:active, .da-swap:active, .sugg-use:active,
+.ds-free .chip-action:active, .pick:active {
+  transform: translateY(1px);
+}
+
+/* Keyboard focus must always be visible on a dark surface. */
+.tab-btn:focus-visible, .btn-secondary:focus-visible, .bd-use:focus-visible,
+.da-swap:focus-visible, .pick:focus-visible, .sugg-use:focus-visible,
+.ds-slot:focus-visible, .pick-filter:focus-visible, .tower-pick select:focus-visible,
+.chip-action:focus-visible, .card-item:focus-visible, .search-input:focus-visible {
+  outline: 2px solid var(--accent2);
+  outline-offset: 2px;
+}
+
+/* Numbers in metrics line up column-to-column. */
+.da-val, .bm-val, .ds-timing-val, .bc-nums, .br-score, .bd-rec, .sugg-score {
+  font-variant-numeric: tabular-nums;
 }

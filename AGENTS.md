@@ -33,9 +33,10 @@ player-config.js   → DEFAULT_PLAYER_TAG (public, committed)
 config.js          → CLASH_ROYALE_API_TOKEN + API_BASE (gitignored, NEVER read)
 card-data.js       → CARDS_* arrays, GOLD_PER_LEVEL, MAX_LEVELS, START_LEVELS, DECK_SIZE, SLOT_RULES, HEROES, TOWER_TROOPS
 card-roles.js      → CARD_ROLES — every card + tower troop mapped to role/tags/air/splash/cycle
-meta-decks.js      → META_DECKS — validated archetypes with slot assignments
-deck-engine.js     → Pure deck logic (no DOM, no fetch): cardFlags, assignSlots, deckViolations, scoreArchetype, rankArchetypes, deckUpgradePlan
-app.js             → All UI logic depends on globals from above
+meta-decks.js       → META_DECKS — validated archetypes with slot assignments
+deck-engine.js      → Pure deck logic (no DOM, no fetch): cardFlags, assignSlots, deckViolations, scoreArchetype, rankArchetypes, deckUpgradePlan
+deck-analysis.js    → Pure deck quality logic: DECK_CHECKS, analyzeDeck, autofillDeck, swapSuggestions, upgradeValueList
+app.js              → All UI logic depends on globals from above
 ```
 
 ## Architecture
@@ -51,6 +52,7 @@ app.js             → All UI logic depends on globals from above
 | `card-roles.js` | ✅ | Role/tag classification for every card (used by the suggestion engine) |
 | `meta-decks.js` | ✅ | Archetype dataset with slot assignments + a self-check that runs under node |
 | `deck-engine.js` | ✅ | Deck legality + scoring — pure functions over the globals above |
+| `deck-analysis.js` | ✅ | Coverage checks, deck score/grade, autofill, swap ideas, upgrade value |
 | `deck-rules.md` | ✅ | Verified deck-building rules (slots, ceilings, unlocks) with sources |
 | `cli.js` | ✅ | CLI upgrade snapshot tool (`node cli.js`) |
 | `serve.py` | ✅ | Local dev server + API proxy + image CDN cache |
@@ -99,7 +101,7 @@ tabBar.addEventListener("click", e => switchTab(e.target.closest(".tab-btn").dat
 // switchTab toggles .active on the matching .tab-btn and #tab-{name}
 ```
 
-Tabs: `collection`, `deck`, `suggestions`, `rules` — each maps to `#tab-{name}`.
+Tabs: `collection`, `deck`, `suggestions`, `battles`, `rules` — each maps to `#tab-{name}`.
 
 ### Key Functions in app.js
 
@@ -115,17 +117,31 @@ Tabs: `collection`, `deck`, `suggestions`, `rules` — each maps to `#tab-{name}
 | `renderCards()` | app.js | Collection grid: rarity + status filters, search, sort, badges |
 | `renderDeckBuilder()` | app.js | Slot grid, tower select, rule check, pick list |
 | `renderSuggestions()` | app.js | Ranked archetypes with owned/missing chips and upgrade plan |
+| `loadBattlelog(tag)` | app.js | GET `/players/{tag}/battlelog`, cached by tag; sets `battlelogError` on failure |
+| `renderBattles()` | app.js | Battles tab: W-L/win rate/form metrics, decks you played, per-card WR, matchups faced, recent list |
 | `cardFlags(merged)` | deck-engine.js | champion / evo-capable / evo-unlocked / hero-capable / role / level for one card |
 | `assignSlots(cards)` | deck-engine.js | Greedy slot assignment (champion → evolution → hero → wild) + overflow |
 | `deckViolations(cards, tower)` | deck-engine.js | Deck size, duplicates, ceilings, unowned cards, tower troop |
 | `scoreArchetype(arch, index, fav)` | deck-engine.js | Score one archetype against the player |
 | `rankArchetypes(index, fav)` | deck-engine.js | Score + sort every archetype |
 | `deckUpgradePlan(result, index, cardsToMax, goldToMax)` | deck-engine.js | What to upgrade to make a deck work |
+| `analyzeDeck(cards, tower)` | deck-analysis.js | Metrics + 10 weighted coverage checks → score, grade S–E |
+| `autofillDeck(pool)` | deck-analysis.js | Greedy legal 8-card build from the owned cards |
+| `swapSuggestions(cards, pool)` | deck-analysis.js | Owned card + deck victim for each failed coverage check |
+| `upgradeValueList(index, limit)` | deck-analysis.js | Which upgrade counts toward the most best-fit decks |
 | `sanitizeTag(tag)` | app.js | Strips non-alnum, uppercases, prepends `#` |
 
 ### Deck Card Rendering
 
-Deck builder rows show: card image, name with ⚡ (evolution active) / ★ (hero-capable) marks, level + elixir, a slot selector (champion / evolution / hero / wild / normal), and a remove button. The summary line reports deck size, average elixir, the equipped tower troop, and which cards occupy which special slots. `slotViolations()` adds the two rules the count ceilings can't express: only one card per special slot, and only special cards may occupy special slots.
+Deck builder rows show: card image, name with ⚡ (evolution active) / ★ (hero-capable) marks, level + elixir, a slot selector (champion / evolution / hero / wild / normal), and a remove button. The summary line reports deck size, average elixir, 4-card cycle cost, the deck grade + score, the equipped tower troop, and which cards occupy which special slots. `slotViolations()` adds the two rules the count ceilings can't express: only one card per special slot, and only special cards may occupy special slots. Slots are seeded automatically: `autoAssignCurrentDeck()` runs `assignSlots()` on the API deck, the reset button, and any deck loaded without explicit slots (archetypes/`autofillDeck()` already arrive assigned), so special cards activate by default; `slotFits()` / `pickSlotFor()` re-seat a card when a swap or a pick no longer fits its slot, and the summary line lists the slots actually chosen (not a re-derived assignment).
+
+### Deck analysis panel (`deck-analysis.js`)
+
+Below the rule check, the deck tab renders the coverage analysis: five metrics (avg elixir, 4-card cycle, grade + score, attack/defence split, full 8-card cycle), then one tile per `DECK_CHECKS` entry (id, label, need, weight, ok, detail). **The score is the sum of the weights of the passing checks** — `DECK_CHECKS` weights sum to 100, so `analyzeDeck()` returns that sum directly; grades are S ≥90, A ≥80, B ≥70, C ≥60, D ≥45, else E. Checks measure composition only — legality stays in `deckViolations()` / `slotViolations()`.
+
+When checks fail the panel lists **swap ideas**: `swapSuggestions()` finds the owned card that would close the gap and the least load-bearing deck card to drop (`redundancy()` counts the checks a card helps satisfy that would still pass without it). Clicking a swap applies it in place. **Auto-fill** runs `autofillDeck()` — greedy over `deckProgress()` (each check's weight × how far the deck is toward passing it, so a "needs 2 anti-air" gap is worth building toward before it closes), then level progress / evolution / special rarity, with average elixir and special-slot capacity (verified by bipartite matching in `fitsSpecialSlots()`) as hard constraints. `deckProgress()` only steers the filler — the displayed score stays the binary sum of passing weights.
+
+The URL hash always encodes the view: `#tag=TAG&deck=Name|slot,Name&tower=Tower` (slot omitted when `normal`). `writeHash()` runs at the end of `renderDeckBuilder()`; `readHash()` is consumed once at boot through `pendingShared` so a shared deck is never re-applied when the user switches tags. **Copy link** writes that URL to the clipboard.
 
 ### Card Collection
 
@@ -148,7 +164,19 @@ Sorts: upgrade priority / level ↓ / rarity + level
 
 ### Suggested Decks
 
-26 archetypes in `meta-decks.js`, scored against your collection: +3 per owned card, +2 per average level, +6 per unlocked evolution, +4 per hero-capable card, +3 per champion, +15 for the key card, +20 for the favourite, tier bonus S/A/B, +12 for a win condition, +6 for a spell, +6 for 2+ air answers, +4 for cycle ≤ 3.5 avg elixir, −5 per missing card, −12 per rule violation. Top 10 shown with owned/missing chips, avg level, tower troop, and the upgrade plan to close the gap.
+78 archetypes in `meta-decks.js` (the original 26 plus 52 seeded from deckai.app's popular decks, each carrying `metaWr` / `metaGames` / `metaRating`), scored against your collection: +3 per owned card, +2 per average level, +6 per unlocked evolution, +4 per hero-capable card, +3 per champion, +15 for the key card, +20 for the favourite, tier bonus S/A/B, +12 for a win condition, +6 for a spell, +6 for 2+ air answers, +4 for cycle ≤ 3.5 avg elixir, −5 per missing card, −12 per rule violation. Top 10 shown with owned/missing chips, avg level, tower troop, a **Use** button that loads the archetype into the deck builder (`applyDeck()`), and the upgrade plan to close the gap. Above the list, **Invest efficiently** renders `upgradeValueList()` — owned, unmaxed cards that appear in `META_DECKS`, weighted by tier (S=3 A=2 B=1) × role weight, sorted by impact and normalised to a percentage bar; clicking a row jumps to that card in the collection. Decks with published stats show a `meta 56.2% · 36 games` chip in `.sugg-stats`, and the list ends with the `.sugg-src` footnote naming deckai.app as the source (7-day sample, ranked + Path of Legend playlists) — everything else in the score is computed from the player's collection.
+
+### Deck statistics panel (`#deck-stats`, rendered by `renderDeckStats()` in app.js)
+
+Below the rules check and above the coverage checks. Six metric cells (average elixir, 4-card cycle, full 8-card cycle, cheapest win condition, average spell, special slots active), the **cheapest 4-card cycle** with card icons, an **elixir ladder** histogram, **rotation timing**, a **hero abilities** row, and a **deck identity** block.
+
+Rotation timing converts costs into seconds, because elixir regenerates 1 per **2.8 s** at 1x, **1.4 s** at 2x and **1.0 s** at 3x — so a 10⚡ 4-card rotation is 28.0 s / 14.0 s / 10.0 s and an 8-card full rotation of 34⚡ is 95.2 s / 47.6 s / 34.0 s. Bands: 4-card rotation ≤ 9⚡ cycle, 10–13 midrange, ≥ 14 beatdown. **Hero ability cost is deliberately excluded from average elixir and cycle** — abilities are one-time (4 Aug 2026) and sit off the 10-elixir rotation clock, so they get their own row; champion abilities are the opposite (off-cycle but repeatable), so their cost is not modelled.
+
+Clicking a free special slot in the deck identity block filters the pick list to owned cards that can legally fill it; `#pick-filter` takes free text (name or role) or a slot name (`champion` / `evolution` / `hero` / `wild`). Deck cards show a `.ds-elixir` bar and badges for the special form they are actually playing in — `plain card` (dashed, italic) means the card is special-capable but occupies a normal slot, so nothing activates.
+
+### Battles tab (own win rates)
+
+`#tab-battles` renders the official `GET /players/{tag}/battlelog` (the only win-rate source the Developer API offers — it publishes no meta stats; typically the last ~30 battles). `loadBattlelog()` is awaited at the end of `loadPlayer()` and cached by tag; on a 403/404/error it shows an empty state instead of breaking the page. Sections: five metric cells (games, win rate, record, form streak, avg crowns), **Decks you played** grouped by card set with grade via `analyzeDeck` + a **Use** button, **Card win rate** (2+ games), **Matchups you faced** (opponent deck signatures matched against `META_DECKS`, else "Off-meta deck"), and **Recent battles** (click a row to load that deck). Result = `team[0].crowns` vs `opponent[0].crowns` (the API returns no `result` field).
 
 ### Deck Rules (verified — full version in `deck-rules.md`)
 
@@ -267,6 +295,8 @@ Then open `http://localhost:8090/`. Opening `index.html` directly does NOT work 
 ## Common Tasks
 
 - **Add a card role/tag**: edit `CARD_ROLES` in `card-roles.js` — the suggestion engine reads `role`, `tags`, `air`, `splash`, `targeting`, `cycle`
+- **Fix an `air`/`splash` flag**: `air` must be true when the card is a genuine air *answer*, which includes spawners whose troops attack air (Goblin Hut → Spear Goblins, Furnace → Fire Spirits both count; Suspicious Bush spawns ground-only Bush Goblins and must stay `air: false`). A wrong `air: true` silently inflates deck grades via the anti-air coverage check and the +6 air-answers score — verify against the card's in-game "Targets" stat before flipping, in both directions. — it drives the anti-air coverage check and the +6 air-answers score, so a wrong `air: true` silently inflates deck grades. Verify against the card's in-game "Targets" stat before flipping.
+- **Change a coverage check**: edit `DECK_CHECKS` in `deck-analysis.js` — the weights must keep summing to 100 (the score is the sum of passing weights) and the Rules tab's score table is generated from the same array.
 - **Add an archetype**: append to `META_DECKS` in `meta-decks.js`; the self-check at the bottom of that file runs under `node meta-decks.js` and throws on slot illegality
 - **Add a hero**: append to `HEROES` in `card-data.js` AND the table in `deck-rules.md` — the API can't confirm hero releases, so both are hand-maintained
 - **Add a tab**: add `<button class="tab-btn" data-tab="newtab">` to `#tab-bar`, add `<div class="tab-panel" id="tab-newtab">`, add a `renderNewTab()` called from `loadPlayer()`

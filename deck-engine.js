@@ -184,6 +184,8 @@ function scoreArchetype(arch, index, fav) {
     tier: arch.tier,
     win: arch.win,
     meta: arch.meta,
+    metaWr: arch.metaWr != null ? arch.metaWr : null,
+    metaGames: arch.metaGames != null ? arch.metaGames : null,
     modes: arch.modes || [arch.meta],
     violations: violations,
     notes: notes,

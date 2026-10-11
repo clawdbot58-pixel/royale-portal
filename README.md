@@ -12,8 +12,15 @@ Enter your player tag and get detailed stats, your current deck, suggested meta 
 - **Player Lookup** — search any Clash Royale player by tag
 - **Collection** — all 123 cards + 4 tower troops with level, progress, evolution/hero badges, rarity multi-select, status filters, search, upgrade-priority sort
 - **Deck Builder** — 8 slots with champion / evolution / hero / wild rules, tower troop selection, live legality check, average elixir
-- **Deck Suggestions** — 26 meta archetypes scored against your actual levels, with the upgrade plan to close the gap
-- **Deck Rules** — the verified slot rules, ceilings, and unlock thresholds, in-app
+- **Deck check** — 10 weighted coverage checks (win condition, anti-air, small/big spell, tank killer, splash, building, swarm, avg elixir, cycle) scored to 100 with an S–E grade, plus attack/defence balance, 4-card cycle cost and full-cycle cost
+- **Swap ideas** — for every failed check, the owned card that fixes it and the deck card it should replace; tap to apply
+- **Auto-fill** — builds a legal 8-card deck from your own collection, greedy over coverage gaps, levels, elixir and special-slot capacity
+- **Shareable links** — the URL always encodes tag + deck + tower (`#tag=…&deck=…&tower=…`), so **Copy link** gives a deck someone else can open
+- **Deck statistics** — average elixir, 4-card and full rotation costs, cheapest win condition, an elixir ladder, rotation time in seconds at 1x/2x/3x elixir (elixir regenerates 1 per 2.8 s), hero ability costs kept separate from the cycle, and an auto-detected deck archetype + tempo verdict
+- **Deck Suggestions** — 78 meta archetypes scored against your actual levels, each with a **Use** button that loads it into the builder and the upgrade plan to close the gap; decks with published stats show their meta win rate (source: deckai.app popular decks)
+- **Battles** — your own win rates from the official battle log: overall record + form, each deck you've played with its grade and record, per-card win rates, which archetypes you've faced, and a clickable recent-battles list
+- **Invest efficiently** — the upgrades that count toward the most of your best-fit decks, with the cards/gold for the next level; click a row to jump to that card
+- **Deck Rules** — the verified slot rules, ceilings, unlock thresholds and the scoring weights, in-app
 - **CLI** — `node cli.js` prints an upgrade snapshot in the terminal
 
 ## Getting Started
@@ -70,9 +77,10 @@ Then open `http://localhost:8090/`. Opening `index.html` directly will not work.
 ├── index.html         → Main page
 ├── style.css          → Dark-theme styles
 ├── card-data.js       → Upgrade tables, max levels, slot rules, heroes
-├── card-roles.js      → Card role/tag classification
+├── card-roles.js      → Card role/tag/air/splash classification
 ├── meta-decks.js      → Archetype dataset
-├── deck-engine.js     → Deck legality + scoring (pure, no DOM)
+├── deck-engine.js     → Deck legality + archetype scoring (pure, no DOM)
+├── deck-analysis.js   → Coverage checks, autofill, swap ideas, upgrade value
 ├── app.js             → UI logic (API calls, rendering, event handlers)
 ├── cli.js             → Terminal upgrade snapshot
 ├── serve.py           → Dev server + API proxy + image cache
@@ -91,6 +99,9 @@ Then open `http://localhost:8090/`. Opening `index.html` directly will not work.
 - [ ] Support for `#`-tag autocomplete
 - [x] Deck builder with slot rules and elixir average calculator
 - [x] Card level upgrade tracker
+- [x] Deck coverage check with score, grade, swap ideas and auto-fill
+- [x] Shareable deck links
+- [ ] Match history and per-deck win rates
 - [ ] Clan management dashboard
 - [ ] River race stats
 - [ ] Player vs player comparison
