@@ -172,6 +172,8 @@ Below the rules check and above the coverage checks. Six metric cells (average e
 
 Rotation timing converts costs into seconds, because elixir regenerates 1 per **2.8 s** at 1x, **1.4 s** at 2x and **1.0 s** at 3x — so a 10⚡ 4-card rotation is 28.0 s / 14.0 s / 10.0 s and an 8-card full rotation of 34⚡ is 95.2 s / 47.6 s / 34.0 s. Bands: 4-card rotation ≤ 9⚡ cycle, 10–13 midrange, ≥ 14 beatdown. **Hero ability cost is deliberately excluded from average elixir and cycle** — abilities are one-time (4 Aug 2026) and sit off the 10-elixir rotation clock, so they get their own row; champion abilities are the opposite (off-cycle but repeatable), so their cost is not modelled.
 
+Every suggestion carries an `.sugg-active` line naming the special forms that would actually fire for you (locked evos name their 6-shard price, heroes are flagged unlock-unknown since the API never reports hero state); `scoreArchetype()` passes `evo`/`hero`/`champion` through for it. Locked collection evos read `Evo 0/3 · 6 shards`.
+
 Clicking a free special slot in the deck identity block filters the pick list to owned cards that can legally fill it; `#pick-filter` takes free text (name or role) or a slot name (`champion` / `evolution` / `hero` / `wild`). Deck cards show a `.ds-elixir` bar and badges for the special form they are actually playing in — `plain card` (dashed, italic) means the card is special-capable but occupies a normal slot, so nothing activates.
 
 ### Battles tab (own win rates)
