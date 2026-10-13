@@ -1613,3 +1613,11 @@ h1, h2, h3, h4 { letter-spacing: -0.01em; }
   .ds-remove::after { content: ""; position: absolute; inset: -8px; }
   .pick, .da-swap { min-height: 44px; }
 }
+
+/* Suggestion special-slot activation line */
+.sugg-active {
+  font-size: 0.74rem; color: var(--text); margin-top: 0.5rem;
+  display: flex; flex-wrap: wrap; gap: 0.3rem 0.8rem;
+}
+.sugg-active .sugg-off { color: var(--text-muted); font-size: 0.7rem; }
+@media (max-width: 700px) { .sugg-active { font-size: 0.7rem; } }

@@ -539,11 +539,14 @@ function renderCards() {
 
     // Evolution / hero / role badges — the collection shows what the player has
     if (f.evoMax > 0) {
-      bodyExtraHtml += '<div class="ci-badge ' + (f.evoUnlocked ? "ci-badge-on" : "ci-badge-off") + '">' +
-        '<i class="fa-solid fa-bolt" aria-hidden="true"></i> Evo ' + f.evoLevel + '/' + f.evoMax + '</div>';
+      bodyExtraHtml += '<div class="ci-badge ' + (f.evoUnlocked ? "ci-badge-on" : "ci-badge-off") + '"' +
+        ' title="' + (f.evoUnlocked ? "Evolution unlocked" : "Evolution locked — needs 6 shards to unlock") + '">' +
+        '<i class="fa-solid fa-bolt" aria-hidden="true"></i> Evo ' + f.evoLevel + '/' + f.evoMax +
+        (f.evoUnlocked ? "" : " · 6 shards") + '</div>';
     }
     if (f.heroCapable) {
-      bodyExtraHtml += '<div class="ci-badge ci-hero">' +
+      bodyExtraHtml += '<div class="ci-badge ci-hero"' +
+        ' title="Hero ability costs ' + (f.hero ? f.hero.abilityCost : 0) + ' elixir, single-use. Hero unlock needs 200 shards — the API never reports unlock state, so this only means you own the base card.">' +
         '<i class="fa-solid fa-star" aria-hidden="true"></i> Hero +' + (f.hero ? f.hero.abilityCost : 0) + '⚡</div>';
     }
     if (f.role && f.role !== "unknown") {
@@ -1508,6 +1511,33 @@ function renderSuggestions() {
     }
     return "";
   }
+  // Which special forms would actually activate for this player. An
+  // evolution needs its shards unlocked (Evo n/3 in the collection), a
+  // hero needs its 200-shard unlock — which the API never reports, so a
+  // hero-capable owned card is shown as activatable but flagged unknown.
+  function activatesLine(a, idx) {
+    var on = [], off = [];
+    (a.evo || []).forEach(function(n) {
+      var c = idx[n];
+      if (c && c.owned && cardFlags(c).evoUnlocked) on.push("⚡" + n);
+      else off.push("⚡" + n + (c && c.owned ? " (locked — 6 shards)" : " (not owned)"));
+    });
+    (a.hero || []).forEach(function(n) {
+      var c = idx[n];
+      if (c && c.owned) on.push("★" + n + " (unlock unknown)");
+      else off.push("★" + n + " (not owned)");
+    });
+    (a.champion || []).forEach(function(n) {
+      var c = idx[n];
+      if (c && c.owned) on.push("♛" + n);
+      else off.push("♛" + n + " (not owned)");
+    });
+    if (!on.length && !off.length) return "";
+    return '<div class="sugg-active">' +
+      (on.length ? "<span>Activates: " + on.join(", ") + "</span>" : "<span>Nothing special activates</span>") +
+      (off.length ? ' <span class="sugg-off">inactive: ' + off.join(", ") + "</span>" : "") +
+    "</div>";
+  }
   // Unlock cost line for non-ready decks: what's missing + the grind to max.
   function unlockLine(a) {
     if (isReady(a)) return "";
@@ -1542,6 +1572,7 @@ function renderSuggestions() {
         return '<span class="chip ' + (on ? "chip-on" : "chip-off") + '">' + n + (on ? "" : " +") + "</span>";
       }).join("") + "</div>" +
       keyFlag(a) +
+      activatesLine(a, idx) +
       unlockLine(a) +
       (a.win ? '<div class="sugg-win">' + a.win + "</div>" : "") +
       (plan.length ? '<div class="sugg-plan"><h4>To make it work</h4><ul>' + plan.map(function(p) {

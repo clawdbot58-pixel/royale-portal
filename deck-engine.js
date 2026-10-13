@@ -195,6 +195,11 @@ function scoreArchetype(arch, index, fav) {
     violations: violations,
     notes: notes,
     key: arch.key || null,
+    // Slot assignments travel with the result so the UI can show which
+    // special forms would actually activate for this player.
+    evo: arch.evo || [],
+    hero: arch.hero || [],
+    champion: arch.champion || [],
   };
 }
 
