@@ -326,7 +326,18 @@ async function loadPlayer(tag) {
       var known = {};
       mergedCards.forEach(function(c) { known[c.name] = true; });
       var sharedDeck = (pendingShared.deck || []).filter(function(d) { return known[d.name]; });
-      if (sharedDeck.length) currentDeck = sharedDeck;
+      if (sharedDeck.length) {
+        // A legacy link can claim the same slot twice: `Monk|champion` and
+        // `Knight|hero` both land in the hero slot after the migration. The
+        // first keeps it, the rest drop to normal and get re-seated below.
+        var takenSlot = {};
+        sharedDeck.forEach(function(d) {
+          if (!d.slot || d.slot === "normal") return;
+          if (takenSlot[d.slot]) { d.slot = "normal"; return; }
+          takenSlot[d.slot] = true;
+        });
+        currentDeck = sharedDeck;
+      }
       if (pendingShared.tower && known[pendingShared.tower]) currentTower = pendingShared.tower;
       pendingShared = null;
     }
@@ -739,8 +750,23 @@ function autoAssignCurrentDeck() {
   currentDeck.forEach(function(d) { if (d.slot && d.slot !== "normal") taken[d.slot] = true; });
   currentDeck.forEach(function(d) {
     if (d.slot && d.slot !== "normal") return;
+    var c = deckIndex()[d.name];
+    if (!c) return;
+    var f = cardFlags(c);
+    // The greedy assignment is only a first choice: if it was already taken
+    // (a shared link claiming a slot, say) fall through to any other special
+    // slot this card can legally fill, rather than leaving a free slot empty.
+    var order = [];
     var want = assigned.slots[d.name];
-    if (want && want !== "normal" && !taken[want]) { d.slot = want; taken[want] = true; }
+    if (want && want !== "normal") order.push(want);
+    var rest = (f.isChampion || f.heroCapable) ? ["hero", "wild"] : f.evoCapable ? ["evolution", "wild"] : [];
+    rest.forEach(function(sl) { if (order.indexOf(sl) === -1) order.push(sl); });
+    for (var i = 0; i < order.length; i++) {
+      if (taken[order[i]] || !slotFits(f, order[i])) continue;
+      d.slot = order[i];
+      taken[order[i]] = true;
+      return;
+    }
   });
 }
 
@@ -892,7 +918,7 @@ function renderDeckGuide(cards, specials, an) {
   if (!el) return;
   var done = [
     cards.length >= DECK_SIZE,
-    specials.length >= 4,
+    specials.length >= 3,
     !!(an && cards.length && an.score >= 80),
   ];
   var current = done.indexOf(false);
@@ -996,7 +1022,7 @@ function renderDeckBuilder() {
         '<div class="dsum-cell grade-' + an.grade.toLowerCase() + '">' +
           '<span class="dsum-val">' + gradeText(an.grade, an.score) + "</span>" +
           "<span class=dsum-lbl>deck score out of 100</span></div>" +
-        '<div class="dsum-cell' + (specials.length === 4 ? " ok" : "") + '">' +
+        '<div class="dsum-cell' + (specials.length === 3 ? " ok" : "") + '">' +
           '<span class="dsum-val">' + specials.length + "<small>/3</small></span>" +
           "<span class=dsum-lbl>special slots active</span></div>" +
       "</div>" +
@@ -1158,20 +1184,29 @@ function renderDeckStats(cards) {
   }).join("") + "</div>";
 
   // Hero abilities: one-time costs, tracked apart from the cycle maths.
+  // Champions share the hero slot but their ability is repeatable and
+  // off-cycle, so it is named without a cost.
   var abilityRows = currentDeck.filter(function(d) { return d.slot === "hero"; });
   var abilityTotal = abilityRows.reduce(function(a, d) {
     var c = deckIndex()[d.name];
     var h = c ? heroFor(d.name) : null;
     return a + (h ? h.abilityCost : 0);
   }, 0);
+  var isChamp = function(n) { var c = deckIndex()[n]; return !!(c && c.rarity === "champion"); };
   html += '<div class="ds-ability"><h4>Hero abilities <span>not part of the elixir average</span></h4>' +
     (abilityRows.length
       ? abilityRows.map(function(d) {
           var h = heroFor(d.name);
+          if (isChamp(d.name)) {
+            return '<div class="ds-ability-row"><span class="ds-ability-cost champ">♛</span>' +
+              "<span>" + d.name + " — champion ability, repeatable and off-cycle (no one-time cost)</span></div>";
+          }
           return '<div class="ds-ability-row"><span class="ds-ability-cost">+' + (h ? h.abilityCost : "?") + "⚡</span>" +
             "<span>" + d.name + (h ? " — " + h.ability : "") + "</span></div>";
-        }).join("") + '<div class="ds-ability-total">' + abilityTotal + "⚡ of one-time ability elixir</div>"
-      : '<div class="ds-ability-total">No hero in a hero slot — nothing outside the cycle.</div>') +
+        }).join("") +
+        (abilityTotal ? '<div class="ds-ability-total">' + abilityTotal + "⚡ of one-time ability elixir</div>"
+          : '<div class="ds-ability-total">Nothing outside the cycle.</div>')
+      : '<div class="ds-ability-total">No hero or champion in the hero slot — nothing outside the cycle.</div>') +
     "</div>";
 
   // ---- Rotation timing in seconds ----

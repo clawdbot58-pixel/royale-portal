@@ -831,6 +831,7 @@ button i { margin-right: 5px; }
   font-size: 0.75rem; color: var(--text); padding: 0.15rem 0;
 }
 .ds-ability-cost { color: var(--accent2); font-weight: 700; min-width: 34px; font-variant-numeric: tabular-nums; }
+.ds-ability-cost.champ { color: var(--rarity-champion); font-size: 1.05rem; }
 .ds-ability-total { font-size: 0.72rem; color: var(--text-muted); margin-top: 0.4rem; }
 
 /* ===== Special-slot badges on deck cards ===== */
