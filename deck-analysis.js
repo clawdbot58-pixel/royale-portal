@@ -151,6 +151,46 @@ function deckChecks(cards) {
   return DECK_CHECKS.map(function(d) { return byId[d.id]; });
 }
 
+// A one-paragraph game plan synthesized from the deck's composition.
+// Same vocabulary the archetype blurbs use, so a custom build reads like a
+// real deck and a plan-less pile reads as one.
+function deckStrategy(cards) {
+  if (!cards.length) return "";
+  var cov = deckCoverage(cards);
+  function tag(c, t) { var r = roleEntry(c.name) || {}; return (r.tags || []).indexOf(t) !== -1; }
+  function cheapest(list) {
+    return list.slice().sort(function(a, b) { return elixirOf(a) - elixirOf(b); })[0] || null;
+  }
+
+  if (!cov.win.length) {
+    if (cov.spells.length >= 2) return "No tower-taking card — this is a spell-cycle plan: defend cheaply and close towers with " + names(cov.spells) + ".";
+    return "No tower-taking card and not enough spells to chip with — add a win condition.";
+  }
+  var main = cheapest(cov.win);
+  var others = cov.win.filter(function(c) { return c !== main; });
+  var backup = others.length ? " (" + names(others) + " as backup)" : "";
+  var big = cheapest(cov.big), small = cheapest(cov.small);
+  var tanks = cards.filter(function(c) { var r = roleEntry(c.name) || {}; return r.role === "tank"; });
+  var tank = cheapest(tanks);
+
+  if (tag(main, "siege"))
+    return "Plant " + main.name + " at the bridge and defend the siege" + backup +
+      (big ? "; " + big.name + " clears the swarm they send at it." : ".");
+  if (elixirOf(main) >= 5 && tank)
+    return "Build " + tank.name + " + " + main.name + " from the back" + backup +
+      (big || small ? "; answer their defense with " + (big || small).name + "." : ".");
+  var bait = cards.filter(function(c) { return tag(c, "log-bait") && c.name !== main.name; });
+  if (tag(main, "log-bait") && bait.length)
+    return "Bait their log with " + bait[0].name + ", then " + main.name + backup +
+      (small ? " — keep " + small.name + " for the tower close." : ".");
+  var cyc = cycleCost(cards);
+  if (cyc != null && cyc <= 9)
+    return "Out-cycle to " + main.name + backup + " and punish every mismatch" +
+      (small ? "; close towers with " + small.name + "." : ".");
+  return "Send " + main.name + backup + " with support and defend the counter-push" +
+    (big ? " — " + big.name + " deletes their commit." : ".");
+}
+
 // Offence / defence split, used for the atk-def balance metric.
 function atkDefSplit(cards) {
   var OFF = ["win-condition", "push", "beatdown", "siege"];

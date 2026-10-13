@@ -24,7 +24,7 @@ const META_DECKS = [
     evo: ["Firecracker", "Royal Recruits"],
     hero: ["Knight"],
     champion: [],
-    tags: ["cycle", "air-attack", "splash", "log-bait"],
+    tags: ["spell-cycle", "cycle", "air-attack", "splash", "log-bait"],
     win: "Cycle Firecracker and Electro Spirit behind a Hero Knight tank, chip with Royal Recruits and punish any log with a second Firecracker.",
     meta: "ladder",
     tier: "S",
@@ -52,7 +52,7 @@ const META_DECKS = [
     evo: ["Mega Minion", "Skeletons"],
     hero: ["Bowler"],
     champion: [],
-    tags: ["beatdown", "splash", "air-attack", "control"],
+    tags: ["spell-cycle", "beatdown", "splash", "air-attack", "control"],
     win: "Stone Swish extends Bowler's range past the defending building; clear the lane with Lightning plus Tornado and send Bowler in with Mega Minion.",
     meta: "ladder",
     tier: "A",
@@ -65,7 +65,7 @@ const META_DECKS = [
     evo: ["Skeletons", "Ice Spirit"],
     hero: ["Musketeer"],
     champion: [],
-    tags: ["cycle", "air-attack", "splash", "control"],
+    tags: ["spell-cycle", "cycle", "air-attack", "splash", "control"],
     win: "Trusty Turret out-ranges any building defence; cycle Ice Spirit and Skeletons to out-tempo the opponent and finish with a Musketeer push.",
     meta: "ladder",
     tier: "A",
@@ -78,7 +78,7 @@ const META_DECKS = [
     evo: ["Skeletons", "Ice Spirit"],
     hero: ["Valkyrie"],
     champion: [],
-    tags: ["cycle", "splash", "air-attack", "control"],
+    tags: ["spell-cycle", "cycle", "splash", "air-attack", "control"],
     win: "Wild Whirlwind clears Skeleton Army and hog support for free; defend with Valkyrie, counter-push the surviving tank with Mega Minion.",
     meta: "ladder",
     tier: "A",
@@ -264,7 +264,7 @@ const META_DECKS = [
     evo: ["Elite Barbarians", "Ice Spirit"],
     hero: [],
     champion: [],
-    tags: ["beatdown", "splash", "air-attack", "cycle"],
+    tags: ["spell-cycle", "beatdown", "splash", "air-attack", "cycle"],
     win: "Evolved Elite Barbarians break the bridge defence; Tornado pulls troops together for Lightning and the pair reaches the tower.",
     meta: "ladder",
     tier: "B",
@@ -277,7 +277,7 @@ const META_DECKS = [
     evo: ["Firecracker", "Ice Spirit"],
     hero: [],
     champion: [],
-    tags: ["cycle", "splash", "air-attack", "control", "log-bait"],
+    tags: ["spell-cycle", "cycle", "splash", "air-attack", "log-bait"],
     win: "Evolved Firecracker chips the tower from behind Valkyrie; the opponent loses the log race and the cycle closes the tower.",
     meta: "ladder",
     tier: "B",
@@ -1204,6 +1204,8 @@ const MD_TOWER_TROOPS = ["Tower Princess", "Cannoneer", "Dagger Duchess", "Royal
 const ALLOWED_TAGS = [
   "cycle", "beatdown", "bait", "control", "splash", "air-attack", "building-target", "log-bait",
   "giant", "golem", "hog", "balloon", "graveyard", "xbow", "siege", "counter-push",
+  // A deck with no tower-taking card wins on hero chip + heavy spells.
+  "spell-cycle",
 ];
 
 const ALLOWED_META = ["ladder", "clanwars", "challenge"];
@@ -1233,8 +1235,9 @@ function validate(decks) {
     if (!towerSet.has(d.tower)) problems.push(at + ": tower " + d.tower + " is not a tower troop");
 
     // Four special slots is the hard ceiling above the per-category ones.
-    if (d.evo.length + d.hero.length + d.champion.length > 4)
-      problems.push(at + ": " + (d.evo.length + d.hero.length + d.champion.length) + " special cards (max 4)");
+    // Three special slots since Mar 2026: evolution, hero, wild.
+    if (d.evo.length + d.hero.length + d.champion.length > 3)
+      problems.push(at + ": " + (d.evo.length + d.hero.length + d.champion.length) + " special cards (max 3)");
 
     if (d.evo.length > 2) problems.push(at + ": " + d.evo.length + " evolutions");
     if (d.hero.length > 2) problems.push(at + ": " + d.hero.length + " heroes");

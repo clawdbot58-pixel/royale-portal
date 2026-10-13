@@ -1,11 +1,12 @@
 # Verified Clash Royale deck rules (Oct 2026)
 
-Sources: Supercell blog "Upcoming Changes to Clash Royale!" (20 Feb 2026), support.clashroyale.com Card Evolution + Heroes articles, clashroyale.fandom.com/wiki/Heroes.
+Sources: Supercell blog "Upcoming Changes to Clash Royale!" (20 Feb 2026), Supercell blog "Mid-March Update" (16 Mar 2026, deck slot rework 4 → 3), support.clashroyale.com "Cards & Decks" (three special slots; hero slot takes heroes or champions), support.clashroyale.com Card Evolution + Heroes articles, clashroyale.fandom.com/wiki/Heroes, Supercell blog "Fired Up!" (4 Aug 2025, Furnace rework) + RoyaleAPI/Liquipedia version history.
 
 - Deck = 8 cards.
-- Special slots (since 16 Mar 2026 update, applies to Trophy Road / Ranked / Challenges): 1 Champion slot, 1 Evolution slot, 1 Hero slot, 1 Wild slot. Wild accepts a Champion, a Hero, or an Evolution card.
-- Max in one deck: 2 champions (champion slot + wild), 2 heroes (hero slot + wild), 2 evolutions (evo slot + wild). A special card in a normal slot does NOT get its special behaviour.
-- Champion slot unlocks Arena 5; Hero slot Arena 5 (moved from Arena 15 on 23 Feb 2026); Evolution slot Arena 3 (600 trophies); Wild slot Arena 10 (3000 trophies).
+- Special slots (since the Mid-March 2026 rework, 4 → 3; applies to Trophy Road / Ranked / Challenges / Events): 1 Evolution slot (evolutions only), 1 Hero slot (heroes AND champions — there is no dedicated champion slot), 1 Wild slot (evolution, hero or champion). A special card in a normal slot does NOT get its special behaviour. Decks built under the old 4-slot system are rejected by Ranked/Events until the fourth special is removed.
+- Max in one deck: 3 special cards total; 2 evolutions (evo slot + wild), 2 heroes (hero slot + wild), 2 champions (hero slot + wild). Heroes and champions share the hero slot: one of them takes it, the other needs the wild slot.
+- Evolution slot unlocks Arena 3 (600 trophies); Hero slot Arena 5 (moved from Arena 15 on 23 Feb 2026); Wild slot Arena 10 (3000 trophies).
+- Furnace is a troop since the Aug 2025 rework (was a building): 4-elixir ranged attacker, hits air and ground, spawns one Fire Spirit at a time. It is no longer a defensive building.
 - Evolution unlock: 6 Evolution Shards per card. Evolution levels 1..3 (API `maxEvolutionLevel`, player `evolutionLevel`).
 - Hero unlock: 200 Hero Shards per hero; heroes upgrade with the base card's rarity wild cards. Hero abilities became single-use on 4 Aug 2026.
 - Tower troop (support card): exactly 1 equipped, not part of the 8 cards. API: `supportCards[]` (levels), `currentDeckSupportCards[]` (the equipped one).

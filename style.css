@@ -1622,3 +1622,10 @@ h1, h2, h3, h4 { letter-spacing: -0.01em; }
 .sugg-active .sugg-off { color: var(--text-muted); font-size: 0.7rem; }
 @media (max-width: 700px) { .sugg-active { font-size: 0.7rem; } }
 .sugg-active .sugg-hero { color: var(--accent2); font-size: 0.7rem; }
+.ds-plan {
+  font-size: 0.8rem; color: var(--text);
+  background: var(--surface); border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius-sm); padding: 0.45rem 0.6rem; margin-bottom: 0.55rem;
+}
+.ds-plan b { color: var(--accent); }

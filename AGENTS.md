@@ -120,7 +120,8 @@ Tabs: `collection`, `deck`, `suggestions`, `battles`, `rules` — each maps to `
 | `loadBattlelog(tag)` | app.js | GET `/players/{tag}/battlelog`, cached by tag; sets `battlelogError` on failure |
 | `renderBattles()` | app.js | Battles tab: W-L/win rate/form metrics, decks you played, per-card WR, matchups faced, recent list |
 | `cardFlags(merged)` | deck-engine.js | champion / evo-capable / evo-unlocked / hero-capable / role / level for one card |
-| `assignSlots(cards)` | deck-engine.js | Greedy slot assignment (champion → evolution → hero → wild) + overflow |
+| `assignSlots(cards)` | deck-engine.js | Greedy slot assignment (evolution → hero → wild; champions queue for the hero slot) + overflow |
+| `deckStrategy(cards)` | deck-analysis.js | One-paragraph game plan synthesized from composition (siege/beatdown/bait/cycle/control/spell-cycle) |
 | `deckViolations(cards, tower)` | deck-engine.js | Deck size, duplicates, ceilings, unowned cards, tower troop |
 | `scoreArchetype(arch, index, fav)` | deck-engine.js | Score one archetype against the player |
 | `rankArchetypes(index, fav)` | deck-engine.js | Score + sort every archetype |
@@ -182,7 +183,7 @@ Clicking a free special slot in the deck identity block filters the pick list to
 
 ### Deck Rules (verified — full version in `deck-rules.md`)
 
-Deck = 8 cards + 1 tower troop. Four special slots: 1 champion, 1 evolution, 1 hero, 1 wild — the wild accepts a champion, a hero, **or** an evolution. Ceilings: 2 champions, 2 heroes, 2 evolutions, 4 special cards total; a special card in a normal slot behaves as the plain card. Slot unlocks: champion Arena 5, hero Arena 5 (moved from Arena 15 on 23 Feb 2026), evolution Arena 3 (600), wild Arena 10 (3000). Evolution unlock = 6 shards (levels 1–3); hero unlock = 200 shards; hero abilities are single-use since 4 Aug 2026. The **Rules** tab renders the same content for users. `SLOT_RULES`, `DECK_SIZE`, `HEROES`, `TOWER_TROOPS` in `card-data.js` are the machine-readable version and `deck-rules.md` is the sourced reference — update them together.
+Deck = 8 cards + 1 tower troop. Three special slots since the Mid-March 2026 rework (was 4): 1 evolution (evos only), 1 hero (heroes AND champions — no dedicated champion slot), 1 wild (anything). Ceilings: 2 evolutions, 2 heroes, 2 champions, 3 specials total; a special card in a normal slot behaves as the plain card. Slot unlocks: evolution Arena 3 (600), hero Arena 5 (moved from Arena 15 on 23 Feb 2026), wild Arena 10 (3000). Evolution unlock = 6 shards (levels 1–3); hero unlock = 200 shards; hero abilities are single-use since 4 Aug 2026. Furnace is a troop since Aug 2025 (support role, not a building). Mortar is a siege win-condition like X-Bow. Decks with no tower-taking card must carry the `spell-cycle` tag (hero chip + heavy spells plan). The **Rules** tab renders the same content for users. `SLOT_RULES`, `DECK_SIZE`, `HEROES`, `TOWER_TROOPS` in `card-data.js` are the machine-readable version and `deck-rules.md` is the sourced reference — update them together.
 
 ## API
 

@@ -139,12 +139,17 @@ var START_LEVELS = { common: 1, rare: 3, epic: 6, legendary: 9, champion: 11 };
 // per-deck ceilings are 2 champions, 2 heroes, 2 evolutions. A special card
 // placed in a normal slot does not get its special behaviour.
 var DECK_SIZE = 8;
+// Special slots since the Mid-March 2026 rework (4 → 3): 1 evolution slot
+// (evos only), 1 hero slot (heroes AND champions — there is no dedicated
+// champion slot), 1 wild slot (evo, hero or champion). Max 3 specials total;
+// 2 per category. Old 4-special decks are rejected by Ranked/Events in-game.
 var SLOT_RULES = {
   maxChampions: 2,
   maxHeroes: 2,
   maxEvolutions: 2,
-  slots: ["champion", "evolution", "hero", "wild", "normal"],
-  unlockArena: { champion: 5, hero: 5, evolution: 3, wild: 10 },
+  maxSpecials: 3,
+  slots: ["evolution", "hero", "wild", "normal"],
+  unlockArena: { evolution: 3, hero: 5, wild: 10 },
   evoShardsToUnlock: 6,
   heroShardsToUnlock: 200,
 };

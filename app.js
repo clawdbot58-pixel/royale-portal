@@ -1215,8 +1215,10 @@ function renderDeckStats(cards) {
     return sl !== "normal" && !currentDeck.some(function(d) { return d.slot === sl; });
   });
 
+  var plan = (typeof deckStrategy !== "undefined" && cards.length >= 8) ? deckStrategy(cards) : "";
   html += '<div class="ds-identity">' +
     '<h4>Deck identity</h4>' +
+    (plan ? '<div class="ds-plan"><b>Your plan</b> — ' + plan + "</div>" : "") +
     '<div class="ds-verdict ' + verdictCls + '">' + verdict + "</div>" +
     (best && best.overlap >= 4
       ? '<div class="ds-fit">Closest archetype: <strong>' + best.name + '</strong> <span class="chip">' +
