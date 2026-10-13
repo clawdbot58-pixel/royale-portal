@@ -2,11 +2,12 @@
 //
 // Card names are the EXACT API names from deck-rules.md ("API names are
 // authoritative for matching", note `Mini P.E.K.K.A` has no trailing dot).
-// Slot rules are the 16 Mar 2026 deck rules: 8 cards, 1 champion slot,
-// 1 evolution slot, 1 hero slot, 1 wild slot; the wild accepts a champion,
-// a hero, or an evolution card, so the per-deck ceilings are 2 champions,
-// 2 heroes, 2 evolutions. A special card in a normal slot gets no special
-// behaviour, so each card occupies at most one special slot.
+// Slot rules are the Mid-March 2026 deck rules: 8 cards, 1 evolution slot,
+// 1 hero slot (heroes AND champions), 1 wild slot; the wild accepts a
+// champion, a hero, or an evolution card, so the per-deck ceilings are
+// 2 champions, 2 heroes, 2 evolutions, 3 specials total. A special card in
+// a normal slot gets no special behaviour, so each card occupies at most
+// one special slot.
 //
 // Heroes are not exposed by the developer API, so hero legality is checked
 // against the curated 16-hero list; `hero` entries are the BASE card names.

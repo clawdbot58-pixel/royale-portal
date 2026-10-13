@@ -39,8 +39,8 @@ function cardFlags(merged) {
   };
 }
 
-// Greedy slot assignment: champion → champion slot, unlocked evolution →
-// evolution slot, hero-capable → hero slot, the next special card → wild slot,
+// Greedy slot assignment: unlocked evolution → evolution slot,
+// hero-capable or champion → hero slot, the next special card → wild slot,
 // everything else → normal. Returns {slots: {name: slot}, specials: [...],
 // overflow: [...]} where overflow are special cards with no slot left.
 function assignSlots(cards) {

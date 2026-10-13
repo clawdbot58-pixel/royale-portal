@@ -38,7 +38,9 @@ var CARD_ROLES = {
   "Giant Snowball":  { role: "spell",         air: true,  splash: false, cycle: 2, tags: ["spell", "control"] },
   "Royal Delivery":  { role: "spell",         air: false, splash: true,  cycle: 3, tags: ["spell", "building-target"] },
   "Arrows":          { role: "spell",         air: true,  splash: true,  cycle: 3, tags: ["spell"] },
-  "Mortar":          { role: "win-condition", air: false,  splash: false, cycle: 4, tags: ["win-condition", "siege", "building", "control", "ground-defense"] },
+  // Shells deal area damage (2-tile splash radius), ground-target only —
+  // siege win condition, not a single-target sniper.
+  "Mortar":          { role: "win-condition", air: false, splash: true,  cycle: 4, tags: ["win-condition", "siege", "building", "control", "ground-defense"] },
   "Tesla":           { role: "building",      air: true,  splash: false, cycle: 4, tags: ["tank-killer","building", "air-defense"] },
   "Cannon":          { role: "building",      air: false,  splash: false, cycle: 3, tags: ["tank-killer","building", "air-defense"] },
   "Berserker":       { role: "cycle",         air: false,  splash: false, cycle: 2, tags: ["cycle", "push"] },

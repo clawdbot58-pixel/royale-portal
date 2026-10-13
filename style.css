@@ -1630,3 +1630,8 @@ h1, h2, h3, h4 { letter-spacing: -0.01em; }
   border-radius: var(--radius-sm); padding: 0.45rem 0.6rem; margin-bottom: 0.55rem;
 }
 .ds-plan b { color: var(--accent); }
+
+/* Grid items default to min-width:auto — long unbreakable stat runs would
+   otherwise force suggestion cards wider than the column on phones. */
+.suggestions > * { min-width: 0; }
+.sugg-stats > span, .sugg-active, .sugg-note, .sugg-win { min-width: 0; overflow-wrap: anywhere; }

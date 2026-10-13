@@ -133,11 +133,12 @@ var GOLD_PER_LEVEL = [
 var MAX_LEVELS = { common: 16, rare: 16, epic: 16, legendary: 16, champion: 16 };
 var START_LEVELS = { common: 1, rare: 3, epic: 6, legendary: 9, champion: 11 };
 
-// ── Deck slot rules (verified from the 16 Mar 2026 update) ──
-// Deck = 8 cards. Special slots: 1 champion, 1 evolution, 1 hero, 1 wild.
-// The wild slot accepts a champion, a hero, OR an evolution card, so the
-// per-deck ceilings are 2 champions, 2 heroes, 2 evolutions. A special card
-// placed in a normal slot does not get its special behaviour.
+// ── Deck slot rules (verified from the Mid-March 2026 update) ──
+// Deck = 8 cards. Special slots: 1 evolution, 1 hero, 1 wild.
+// The hero slot accepts a hero OR a champion (no dedicated champion slot);
+// the wild accepts a champion, a hero, OR an evolution, so the per-deck
+// ceilings are 2 champions, 2 heroes, 2 evolutions, 3 specials total.
+// A special card placed in a normal slot does not get its special behaviour.
 var DECK_SIZE = 8;
 // Special slots since the Mid-March 2026 rework (4 → 3): 1 evolution slot
 // (evos only), 1 hero slot (heroes AND champions — there is no dedicated

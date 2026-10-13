@@ -153,42 +153,174 @@ function deckChecks(cards) {
 
 // A one-paragraph game plan synthesized from the deck's composition.
 // Same vocabulary the archetype blurbs use, so a custom build reads like a
-// real deck and a plan-less pile reads as one.
+// real deck and a plan-less pile reads as one. Works on 0–8 cards.
 function deckStrategy(cards) {
   if (!cards.length) return "";
   var cov = deckCoverage(cards);
   function tag(c, t) { var r = roleEntry(c.name) || {}; return (r.tags || []).indexOf(t) !== -1; }
-  function cheapest(list) {
-    return list.slice().sort(function(a, b) { return elixirOf(a) - elixirOf(b); })[0] || null;
-  }
+  function cost(c) { return elixirOf(c); }
+  function descCost(a, b) { return cost(b) - cost(a); }
+  function ascCost(a, b) { return cost(a) - cost(b); }
 
   if (!cov.win.length) {
-    if (cov.spells.length >= 2) return "No tower-taking card — this is a spell-cycle plan: defend cheaply and close towers with " + names(cov.spells) + ".";
-    return "No tower-taking card and not enough spells to chip with — add a win condition.";
+    if (cov.spells.length >= 2) {
+      var sp = cov.spells.slice().sort(descCost);
+      var listed = names(sp.slice(0, 3));
+      if (sp.length > 3) listed += " and " + (sp.length - 3) + " more";
+      return "No tower-taking card — this is a spell-cycle plan: defend cheaply and close towers with " + listed + ".";
+    }
+    if (cov.spells.length === 1)
+      return "No tower-taking card — a spell-cycle plan needs a second spell to chip with; add a win condition or another spell.";
+    return "No tower-taking card and no spells to chip with — add a win condition.";
   }
-  var main = cheapest(cov.win);
-  var others = cov.win.filter(function(c) { return c !== main; });
-  var backup = others.length ? " (" + names(others) + " as backup)" : "";
-  var big = cheapest(cov.big), small = cheapest(cov.small);
-  var tanks = cards.filter(function(c) { var r = roleEntry(c.name) || {}; return r.role === "tank"; });
-  var tank = cheapest(tanks);
 
-  if (tag(main, "siege"))
-    return "Plant " + main.name + " at the bridge and defend the siege" + backup +
-      (big ? "; " + big.name + " clears the swarm they send at it." : ".");
-  if (elixirOf(main) >= 5 && tank)
-    return "Build " + tank.name + " + " + main.name + " from the back" + backup +
-      (big || small ? "; answer their defense with " + (big || small).name + "." : ".");
-  var bait = cards.filter(function(c) { return tag(c, "log-bait") && c.name !== main.name; });
-  if (tag(main, "log-bait") && bait.length)
-    return "Bait their log with " + bait[0].name + ", then " + main.name + backup +
-      (small ? " — keep " + small.name + " for the tower close." : ".");
+  // Which win condition leads. Bait decks lead with their log-bait threat;
+  // Balloon (when a tank is present) and Sparky ride behind the real threat;
+  // fast decks out-cycle with their cheapest threat, slow decks build the tank.
+  var cands = cov.win.slice();
+  if (cands.length > 1) {
+    var baitWins = cands.filter(function (c) { return tag(c, "log-bait"); });
+    if (baitWins.length) cands = baitWins.slice().sort(descCost);
+    var hasTankWin = cands.some(function (c) {
+      return tag(c, "beatdown") && c.name !== "Balloon" && c.name !== "Sparky";
+    });
+    var slim = cands.filter(function (c) {
+      return c.name !== "Sparky" && (c.name !== "Balloon" || !hasTankWin);
+    });
+    if (slim.length) cands = slim;
+  }
   var cyc = cycleCost(cards);
-  if (cyc != null && cyc <= 9)
-    return "Out-cycle to " + main.name + backup + " and punish every mismatch" +
-      (small ? "; close towers with " + small.name + "." : ".");
-  return "Send " + main.name + backup + " with support and defend the counter-push" +
-    (big ? " — " + big.name + " deletes their commit." : ".");
+  var fast = cyc != null && cyc <= 9;
+  var main;
+  if (cands.length === 1) {
+    main = cands[0];
+  } else if (fast) {
+    var cycWins = cands.filter(function (c) { return tag(c, "cycle"); });
+    if (cycWins.length) main = cycWins.slice().sort(ascCost)[0];
+    else {
+      var siegeWins = cands.filter(function (c) { return tag(c, "siege"); });
+      main = (siegeWins.length ? siegeWins : cands).slice().sort(descCost)[0];
+    }
+  } else {
+    var tankWins = cands.filter(function (c) { return tag(c, "beatdown"); });
+    main = (tankWins.length ? tankWins : cands).slice().sort(descCost)[0];
+  }
+
+  // Spells: the biggest is the lane-clearer, the cheapest small the closer.
+  var big = cov.big.slice().sort(descCost);
+  var small = cov.small.slice().sort(ascCost)[0] || null;
+  var bigs = big.length ? (big.length === 1 ? big[0].name : big[0].name + " and " + big[1].name) : null;
+
+  var mentioned = {};
+  mentioned[main.name] = true;
+  function backupTxt() {
+    var o = cov.win.filter(function (c) { return !mentioned[c.name]; }).slice(0, 2);
+    return o.length ? " (" + names(o) + " as backup)" : "";
+  }
+
+  // The card that best covers a push: air / tank answers first.
+  var SUPPORT_SCORE = { "tank-killer": 3, "air-defense": 3, "air-attack": 2, "splash": 1,
+                        "swarm": 1, "support": 1, "tank": 1, "building": 1, "control": 1, "push": 1 };
+  function bestSupport() {
+    var best = null, bestScore = 0, bestCost = 0;
+    cards.forEach(function (c) {
+      if (c === main) return;
+      var r = roleEntry(c.name) || {};
+      if (r.role === "spell" || r.role === "win-condition") return;
+      var s = SUPPORT_SCORE[r.role] || 0;
+      if (tag(c, "tank-killer")) s += 1;
+      if (s > bestScore || (s === bestScore && s > 0 && cost(c) > bestCost)) {
+        best = c; bestScore = s; bestCost = cost(c);
+      }
+    });
+    return best;
+  }
+
+  // Graveyard: bait it, pull the defence into the Skeleton Army.
+  if (tag(main, "graveyard")) {
+    var pulls = cards.filter(function (c) {
+      return c !== main && ["Tornado", "Fisherman", "Void", "Vines"].indexOf(c.name) !== -1;
+    });
+    var cheap = cards.filter(function (c) {
+      var r = roleEntry(c.name) || {};
+      return c !== main && r.role !== "spell" && r.role !== "win-condition" && cost(c) <= 3;
+    }).sort(ascCost)[0] || null;
+    var g = "Bait Graveyard" + (cheap ? " with " + cheap.name : "");
+    if (pulls.length) g += "; pull the defence to the tower with " + pulls[0].name + " and let the skeletons finish";
+    else if (big.length) g += "; " + big[0].name + " cleans up the overcommit";
+    else g += " and punish the overcommit";
+    return g + backupTxt() + ".";
+  }
+
+  // Mortar: the siege building that parks deep behind, not at the bridge.
+  if (tag(main, "building") && tag(main, "win-condition")) {
+    var m = "Park Mortar far behind your troops and chip the tower";
+    if (big.length) m += "; " + big[0].name + " clears any defence that commits";
+    return m + backupTxt() + ".";
+  }
+
+  // Balloon as the main threat: fly it over the troops.
+  if (tag(main, "balloon")) {
+    var air = cards.filter(function (c) {
+      var r = roleEntry(c.name) || {};
+      return c !== main && (r.role === "air-attack" || r.role === "air-defense" || r.role === "tank-killer");
+    }).sort(ascCost)[0] || null;
+    var b = "Fly Balloon over their defence" + (air ? " with " + air.name : "");
+    if (bigs) b += "; " + bigs + (big.length === 1 ? " clears" : " clear") + " the lane";
+    return b + backupTxt() + ".";
+  }
+
+  // Siege win conditions.
+  if (tag(main, "siege")) {
+    if (main.name === "X-Bow") {
+      var x = "Plant X-Bow at the bridge and defend the siege";
+      if (big.length) x += "; " + big[0].name + " clears the swarm they send at it";
+      return x + backupTxt() + ".";
+    }
+    var s = "Set up " + main.name + " behind your defence";
+    if (bigs) s += "; " + bigs + (big.length === 1 ? " clears" : " clear") + " the lane";
+    return s + backupTxt() + ".";
+  }
+
+  // Beatdown: build the tank up with cover behind it.
+  if (tag(main, "beatdown")) {
+    var tanks = cards.filter(function (c) {
+      var r = roleEntry(c.name) || {};
+      return c !== main && r.role === "tank";
+    });
+    var sup = (tanks.length ? tanks.sort(descCost)[0] : null) || bestSupport();
+    var t = "Build " + main.name + (sup ? " with " + sup.name + " behind it" : " from your side");
+    if (bigs) t += "; " + bigs + " clear" + (big.length === 1 ? "s" : "") + " the lane";
+    return t + backupTxt() + ".";
+  }
+
+  // Log-bait: bait the log with the cheap threat, then hit with the main.
+  if (tag(main, "log-bait")) {
+    var baits = cards.filter(function (c) {
+      var r = roleEntry(c.name) || {};
+      return c !== main && r.role !== "spell" && tag(c, "log-bait");
+    }).sort(descCost);
+    if (baits.length) {
+      mentioned[baits[0].name] = true;
+      var bb = "Bait their log with " + baits[0].name + ", then " + main.name + backupTxt();
+      if (small) bb += " — keep " + small.name + " for the tower close";
+      return bb + ".";
+    }
+  }
+
+  // Fast cycle: out-cycle the main threat.
+  if (fast && cost(main) <= 5) {
+    var cy = "Out-cycle to " + main.name + " and punish every mismatch" + backupTxt();
+    if (small) cy += "; close towers with " + small.name;
+    return cy + ".";
+  }
+
+  // Fallback: push the threat with its best support.
+  var sup2 = bestSupport();
+  var f = "Send " + main.name + (sup2 ? " with " + sup2.name + " behind it" : "") +
+    " and defend the counter-push" + backupTxt();
+  if (big.length) f += "; " + big[0].name + " deletes their commit";
+  return f + ".";
 }
 
 // Offence / defence split, used for the atk-def balance metric.
