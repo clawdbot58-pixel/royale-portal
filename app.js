@@ -475,7 +475,8 @@ function renderCards() {
   }
 
   if (!cards.length) {
-    cardGrid.innerHTML = '<div class="empty-state">No cards match.</div>';
+    cardGrid.innerHTML = '<div class="empty-state"><strong>Nothing matches those filters.</strong><br />' +
+      'Clear the search box, or set Status back to "All statuses" and Rarity to "All rarities".</div>';
     return;
   }
 
@@ -506,8 +507,21 @@ function renderCards() {
       var pctNext = needNext > 0 ? Math.min(100, Math.round(have / needNext * 100)) : 0;
       var canUp   = needNext > 0 && have >= needNext;
 
-      bodyExtraHtml += '<div class="ci-lv">Lv' + lv + '</div>';
-      bodyExtraHtml += '<div class="ci-bar' + (canUp ? ' full' : '') + '"><div class="ci-fill" style="width:' + pctNext + '%"></div></div>';
+      // "Lv14  12/20" — the two numbers are the card level and the wild
+      // cards you hold against the cost of the next level, so the bar under
+      // them has something to measure.
+      bodyExtraHtml += '<div class="ci-lv"><span>Lv' + lv + "</span>" +
+        '<span class="ci-need' + (canUp ? " can-up" : "") + '" title="' +
+        have + " of the " + (needNext != null ? needNext : "?") +
+        " wild cards needed for level " + (lv + 1) + (canUp ? " — ready to upgrade" : "") + '">' +
+        have + " / " + (needNext != null ? needNext : "—") + "</span></div>";
+      bodyExtraHtml += '<div class="ci-bar' + (canUp ? ' full' : '') + '" role="img" aria-label="' +
+        pctNext + '% of the cards needed for level ' + (lv + 1) + '">' +
+        '<div class="ci-fill" style="width:' + pctNext + '%"></div></div>';
+    } else if (isMaxed) {
+      bodyExtraHtml += '<div class="ci-lv"><span>Lv' + lv + '</span><span class="ci-maxed">MAX</span></div>';
+    } else {
+      bodyExtraHtml += '<div class="ci-lv"><span class="ci-undiscovered">Not discovered</span></div>';
     }
 
     // Evolution / hero / role badges — the collection shows what the player has
@@ -528,7 +542,8 @@ function renderCards() {
         '<img src="' + img + '" alt="' + card.name + '" loading="lazy" onerror="this.onerror=null;this.src=\'' + fallback + '\'" />' +
       '</div>' +
       '<div class="card-body">' +
-        '<div class="card-n" style="color:' + color + '"><span class="card-n-text">' + card.name + '</span></div>' +
+        '<div class="card-rarity" style="color:' + color + '">' + (card.type === "tower" ? "Tower troop" : r) + "</div>" +
+        '<div class="card-n"><span class="card-n-text">' + card.name + "</span></div>" +
         bodyExtraHtml +
       '</div>';
 
@@ -562,9 +577,12 @@ function updateRarities() {
 
   // Update button label
   if (selectedRarities.size === 0) {
-    msBtn.textContent = "Rarity ▾";
+    msBtn.innerHTML = 'All rarities <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>';
   } else {
-    msBtn.textContent = selectedRarities.size + " ▾";
+    var names = Array.from(selectedRarities).map(function(v) {
+      return v === "tower" ? "Tower" : v.charAt(0).toUpperCase() + v.slice(1);
+    });
+    msBtn.innerHTML = names.join(", ") + ' <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>';
   }
 
   renderCards();
@@ -747,21 +765,52 @@ function renderPickList(filter) {
     return c.name.toLowerCase().indexOf(q) !== -1 || cardFlags(c).role.indexOf(q) !== -1;
   });
 
-  pickListEl.innerHTML = picks.map(function(c) {
+  // An unfiltered collection is ~120 rows, which buries everything above it.
+  // Show a working set and say how many are hidden; any filter shows them all.
+  var PICK_CAP = 24;
+  var shown = picks;
+  var hidden = 0;
+  if (!q && picks.length > PICK_CAP) {
+    shown = picks.slice(0, PICK_CAP);
+    hidden = picks.length - PICK_CAP;
+  }
+
+  var full = currentDeck.length >= DECK_SIZE;
+  pickListEl.innerHTML = shown.map(function(c) {
     var f = cardFlags(c);
     var m = [];
     if (f.evoUnlocked) m.push("evo " + f.evoLevel + "/" + f.evoMax);
     if (f.heroCapable) m.push("hero");
     if (f.isChampion) m.push("champion");
     if (f.role && f.role !== "unknown") m.push(f.role);
-    return '<button class="pick" data-name="' + c.name + '">' +
+    var slot = pickSlotFor(c.name);
+    return '<button class="pick" data-name="' + c.name + '"' + (full ? " disabled" : "") +
+      ' title="' + (full ? "Deck is full — remove a card first" : "Add " + c.name + " to the deck" +
+        (slot !== "normal" ? " in the " + slot + " slot" : "")) + '">' +
       '<img src="' + proxyImg(c.iconUrls.medium, c.name) + '" alt="" loading="lazy" />' +
       "<span>" + c.name + "</span>" +
       '<span class="pick-meta">Lv' + c.level + " · " + c.elixirCost + "⚡" +
         (m.length ? " · " + m.join(" · ") : "") + "</span>" +
+      '<span class="pick-add" aria-hidden="true"><i class="fa-solid fa-plus"></i></span>' +
     "</button>";
   }).join("") || '<div class="empty-state">' +
-    (wantSlot ? "Nothing you own fits this slot" : "Nothing matches that filter") + "</div>";
+    (wantSlot ? "Nothing you own fits this slot — clear the filter to see everything." : "Nothing matches that filter.") + "</div>";
+
+  if (hidden) {
+    pickListEl.innerHTML += '<div class="pick-more">Showing ' + shown.length + " of " + picks.length +
+      " cards you own — search above to narrow it down.</div>";
+  }
+
+  // The heading tells you how much room is left, which is the first thing you
+  // need to know before scrolling a list you cannot add to.
+  var pickCountEl = document.getElementById("pick-count");
+  if (pickCountEl) {
+    var left = DECK_SIZE - currentDeck.length;
+    pickCountEl.textContent = full
+      ? "· deck full at " + DECK_SIZE + " — remove a card to add more"
+      : "· " + left + " slot" + (left === 1 ? "" : "s") + " left · " + picks.length + " cards to choose from";
+    pickCountEl.className = "pick-count" + (full ? " full" : "");
+  }
 }
 
 // Clicking a free special slot in the stats panel narrows the pick list to
@@ -775,6 +824,54 @@ deckStatsEl && deckStatsEl.addEventListener("click", function(e) {
   var picker = document.querySelector(".deck-picker");
   if (picker) picker.scrollIntoView({ behavior: "smooth", block: "nearest" });
 });
+
+// What the slot picker controls, restated on the control itself.
+function slotSelectLabel(sel) {
+  var COPY = {
+    normal: "Normal slot — plays as a plain card",
+    champion: "Champion slot — champion ability active",
+    evolution: "Evolution slot — evolved form active",
+    hero: "Hero slot — hero ability active",
+    wild: "Wild slot — accepts a champion, hero or evolution",
+  };
+  return COPY[sel] || sel;
+}
+
+// The three things you do here, in order, with the first unmet step marked as
+// current so the tab answers "what do I do first?" without a tooltip.
+var DECK_STEPS = [
+  { n: 1, label: "Fill the 8 cards",     hint: "Pick from your collection below" },
+  { n: 2, label: "Seat all 4 special slots", hint: "Champion · evolution · hero · wild" },
+  { n: 3, label: "Score 80 or better",  hint: "The grade is the weight of every check you pass" },
+];
+
+function renderDeckGuide(cards, specials, an) {
+  var el = document.getElementById("deck-guide");
+  if (!el) return;
+  var done = [
+    cards.length >= DECK_SIZE,
+    specials.length >= 4,
+    !!(an && cards.length && an.score >= 80),
+  ];
+  var current = done.indexOf(false);
+  if (current === -1) current = DECK_STEPS.length - 1;
+
+  el.innerHTML =
+    '<ol class="guide-steps">' + DECK_STEPS.map(function(s, i) {
+      var state = done[i] ? "done" : (i === current ? "current" : "todo");
+      return '<li class="guide-step ' + state + '">' +
+        '<span class="guide-num" aria-hidden="true">' +
+          (done[i] ? '<i class="fa-solid fa-check"></i>' : s.n) + "</span>" +
+        '<span class="guide-text"><strong>' + s.label + "</strong>" + s.hint + "</span>" +
+      "</li>";
+    }).join("") + "</ol>" +
+    '<div class="guide-meter">' +
+      '<span class="guide-meter-cell"><b>' + cards.length + "</b> / " + DECK_SIZE + " cards</span>" +
+      '<span class="guide-meter-cell"><b>' + specials.length + "</b> / 4 slots active</span>" +
+      '<span class="guide-meter-cell' + (an && cards.length ? " grade-" + an.grade.toLowerCase() : "") + '">' +
+        "<b>" + (an && cards.length ? an.grade + " · " + an.score + "/100" : "—") + "</b> deck score</span>" +
+    "</div>";
+}
 
 function renderDeckBuilder() {
   if (!deckSlotsEl) return;
@@ -815,35 +912,61 @@ function renderDeckBuilder() {
       if (f.role && f.role !== "unknown") badges += '<span class="ds-badge b-role">' + f.role + "</span>";
     }
 
+    var cost = c && typeof c.elixirCost === "number" ? c.elixirCost : null;
     return '<div class="deck-slot' + cls + '">' +
       '<img src="' + img + '" alt="' + d.name + '" loading="lazy" />' +
       '<div class="ds-info">' +
         '<div class="ds-name">' + d.name + marks + "</div>" +
         '<div class="ds-meta">' + (c && c.owned ? "Lv" + c.level : "not owned") +
-          " · " + (c ? c.elixirCost : "?") + "⚡</div>" +
+          " · " + (cost != null ? cost + "⚡" : "?⚡") + "</div>" +
       "</div>" +
-      '<button class="ds-remove" data-i="' + i + '" title="Remove from deck">' +
+      '<button class="ds-remove" data-i="' + i + '" title="Remove ' + d.name + ' from the deck" aria-label="Remove ' + d.name + ' from the deck">' +
         '<i class="fa-solid fa-xmark" aria-hidden="true"></i></button>' +
-      '<select class="ds-slot" data-i="' + i + '">' + slotOptions(d.slot) + "</select>" +
+      '<select class="ds-slot" data-i="' + i + '" title="' + slotSelectLabel(slot) +
+        '" aria-label="Slot for ' + d.name + '">' + slotOptions(d.slot) + "</select>" +
       (badges ? '<div class="ds-badges">' + badges + "</div>" : "") +
-      '<div class="ds-elixir" title="' + (c && typeof c.elixirCost === "number" ? c.elixirCost + " elixir" : "cost varies") +
-        '"><span style="width:' + (c && typeof c.elixirCost === "number" ? Math.round(c.elixirCost / 10 * 100) : 0) + '%"></span>' +
-        (c && typeof c.elixirCost === "number" ? c.elixirCost : "varies") + "</div>" +
+      '<div class="ds-elixir' + (cost != null && cost <= 2 ? " cheap" : "") + '">' +
+        '<span class="ds-elixir-track"><i style="width:' + (cost != null ? Math.round(cost / 10 * 100) : 0) + '%"></i></span>' +
+        '<span class="ds-elixir-num">' + (cost != null ? cost + "⚡" : "?⚡") + "</span>" +
+        '<span class="ds-elixir-cap">cost</span>' +
+      "</div>" +
     "</div>";
-  }).join("") || '<div class="empty-state">No cards in the deck</div>';
+  }).join("") || '<div class="empty-state"><strong>No cards in the deck yet.</strong><br />' +
+    "Pick 8 from the list below, or press <strong>Auto-fill</strong> and let it build one from what you own.</div>";
 
   var cards = deckCardObjs();
   var an = analyzeDeck(cards, currentTower);
   var specials = currentDeck.filter(function(d) { return d.slot && d.slot !== "normal"; });
+
+  renderDeckGuide(cards, specials, an);
+
   if (deckSummaryEl) {
-    deckSummaryEl.innerHTML = "<strong>" + cards.length + " / " + DECK_SIZE + " cards</strong>" +
-      "<span>avg elixir " + an.avg.toFixed(2) + "</span>" +
-      "<span>cycle " + (an.cycle != null ? an.cycle + "⚡" : "—") + "</span>" +
-      '<span class="da-grade grade-' + an.grade.toLowerCase() + '">' + an.grade + " · " + an.score + "</span>" +
-      "<span>tower: " + (currentTower || "—") + "</span>" +
-      "<span>special slots: " + (specials.length
-        ? specials.map(function(s) { return s.name + " → " + s.slot; }).join(", ")
-        : "none active — every card plays as its plain form") + "</span>";
+    // Orientation only: how big the deck is, how it scores, and which special
+    // slots are live. The elixir breakdown lives in the stats panel below, so
+    // nothing is stated twice.
+    deckSummaryEl.innerHTML =
+      '<div class="dsum-cells">' +
+        '<div class="dsum-cell' + (cards.length === DECK_SIZE ? " ok" : " warn") + '">' +
+          '<span class="dsum-val">' + cards.length + '<small>/' + DECK_SIZE + "</small></span>" +
+          "<span class=dsum-lbl>cards in deck</span></div>" +
+        '<div class="dsum-cell"><span class="dsum-val">' + an.avg.toFixed(2) +
+          "<small>⚡</small></span><span class=dsum-lbl>average elixir per card</span></div>" +
+        '<div class="dsum-cell grade-' + an.grade.toLowerCase() + '">' +
+          '<span class="dsum-val">' + an.grade + '<small>· ' + an.score + "/100</small></span>" +
+          "<span class=dsum-lbl>deck score</span></div>" +
+        '<div class="dsum-cell' + (specials.length === 4 ? " ok" : "") + '">' +
+          '<span class="dsum-val">' + specials.length + "<small>/4</small></span>" +
+          "<span class=dsum-lbl>special slots active</span></div>" +
+      "</div>" +
+      '<div class="dsum-tail">' +
+        '<span class="dsum-meta"><i class="fa-solid fa-tower-broadcast" aria-hidden="true"></i> Tower troop ' +
+          "<strong>" + (currentTower || "—") + "</strong></span>" +
+      "</div>" +
+      '<div class="dsum-slots">' + (specials.length
+        ? "Playing as a special form: " + specials.map(function(s) {
+            return "<span>" + s.name + " <i>→</i> " + s.slot + "</span>";
+          }).join("")
+        : "<span class=dim>No special slot is filled — every card plays as its plain form.</span>") + "</div>";
   }
 
   var v = deckViolations(cards, currentTower).concat(slotViolations());
@@ -851,9 +974,12 @@ function renderDeckBuilder() {
   if (deckCheckEl) {
     deckCheckEl.className = "deck-check " + (v.length ? "has-issues" : (notes.length ? "has-notes" : "ok"));
     deckCheckEl.innerHTML = v.length
-      ? "<h3>Rules violated</h3><ul>" + v.map(function(x) { return "<li>" + x + "</li>"; }).join("") + "</ul>"
-      : "<h3>Legal deck</h3><p>8 cards, slot ceilings respected, tower troop equipped.</p>" +
-        (notes.length ? '<div class="deck-note"><h4>Activation limits</h4><ul>' + notes.map(function(x) { return "<li>" + x + "</li>"; }).join("") + "</ul></div>" : "");
+      ? '<h3><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i> ' + v.length +
+        " rule" + (v.length === 1 ? "" : "s") + " to fix</h3><ul>" +
+        v.map(function(x) { return "<li>" + x + "</li>"; }).join("") + "</ul>"
+      : '<h3><i class="fa-solid fa-circle-check" aria-hidden="true"></i> Legal deck</h3>' +
+        "<p>" + cards.length + " cards, no duplicates, slot ceilings respected, tower troop equipped.</p>" +
+        (notes.length ? '<div class="deck-note"><h4>Worth knowing</h4><ul>' + notes.map(function(x) { return "<li>" + x + "</li>"; }).join("") + "</ul></div>" : "");
   }
 
   renderDeckStats(cards);
@@ -1093,10 +1219,18 @@ function readHash() {
   var params = new URLSearchParams(raw);
   var deck = (params.get("deck") || "").split(",").filter(Boolean).map(function(part) {
     var bits = part.split("|");
-    return {
-      name: decodeURIComponent(bits[0]),
-      slot: bits[1] || "normal",
-    };
+    // params.get decodes once. Links written before the double-encoding
+    // fix carry one extra layer, so keep decoding while it changes
+    // anything (no card name contains a literal %, so this is safe).
+    var name = bits[0] || "";
+    for (var k = 0; k < 3; k++) {
+      try {
+        var again = decodeURIComponent(name);
+        if (again === name) break;
+        name = again;
+      } catch (e) { break; }
+    }
+    return { name: name, slot: bits[1] || "normal" };
   });
   return {
     tag: params.get("tag"),
@@ -1109,8 +1243,10 @@ function writeHash() {
   var params = new URLSearchParams();
   if (currentPlayerTag) params.set("tag", currentPlayerTag.replace(/^#/, ""));
   if (currentDeck.length) {
+    // URLSearchParams encodes on set — no manual encodeURIComponent here
+    // (that used to double-encode names into Ice%2520Golem links).
     params.set("deck", currentDeck.map(function(d) {
-      return encodeURIComponent(d.name) + (d.slot && d.slot !== "normal" ? "|" + d.slot : "");
+      return d.name + (d.slot && d.slot !== "normal" ? "|" + d.slot : "");
     }).join(","));
   }
   if (currentTower) params.set("tower", currentTower);
@@ -1292,14 +1428,16 @@ function renderBattles() {
   }
   if (currentBattlelog === null) {
     battlesSummaryEl.innerHTML = "";
+    var loadingBox = '<div class="empty-state is-loading"><div class="spinner"></div>Loading battle history…</div>';
     battlesDecksEl.innerHTML = battlesCardsEl.innerHTML = battlesFacedEl.innerHTML =
-      battlesListEl.innerHTML = emptyBox + "Loading battles…</div>";
+      battlesListEl.innerHTML = loadingBox;
     return;
   }
   if (battlelogError) {
     battlesSummaryEl.innerHTML = "";
     battlesDecksEl.innerHTML = battlesCardsEl.innerHTML = battlesFacedEl.innerHTML =
-      battlesListEl.innerHTML = emptyBox + "No battle history: " + battlelogError + "</div>";
+      battlesListEl.innerHTML = emptyBox + "<strong>No battle history.</strong><br />" + battlelogError +
+        "<br />Battlelogs are private for some players and only cover the last ~30 battles.</div>";
     return;
   }
 
@@ -1307,7 +1445,8 @@ function renderBattles() {
   if (!rows.length) {
     battlesSummaryEl.innerHTML = "";
     battlesDecksEl.innerHTML = battlesCardsEl.innerHTML = battlesFacedEl.innerHTML =
-      battlesListEl.innerHTML = emptyBox + "Play a ladder or challenge battle — the API returns the last ~30 once you have.</div>";
+      battlesListEl.innerHTML = emptyBox + "<strong>No battles returned.</strong><br />" +
+        "Play a ladder or challenge battle — the API returns the last ~30 once you have one.</div>";
     return;
   }
 
@@ -1322,14 +1461,16 @@ function renderBattles() {
   var typeBits = Object.keys(byType).map(function(t) { return byType[t] + " " + t; }).join(" · ");
 
   battlesSummaryEl.innerHTML = [
-    ["games", games],
-    ["win rate", Math.round(wins / games * 100) + "%"],
-    ["record", wins + "-" + (games - wins)],
-    ["form", (streakWin ? "W" : "L") + streak],
-    ["avg crowns", cf.toFixed(1) + " for · " + ca.toFixed(1) + " against"],
+    ["games", games, ""],
+    ["win rate", Math.round(wins / games * 100) + "%", wins / games >= 0.5 ? "good" : "warn"],
+    ["record", wins + "-" + (games - wins), ""],
+    ["form", (streakWin ? "W" : "L") + streak, streak >= 3 ? (streakWin ? "good" : "bad") : ""],
+    ["crowns for", cf.toFixed(1), ""],
+    ["crowns against", ca.toFixed(1), ca > cf ? "warn" : ""],
   ].map(function(m) {
-    return '<div class="bat-metric"><span class="da-val">' + m[1] + '</span><span class="da-lbl">' + m[0] + "</span></div>";
-  }).join("") + '<div class="bat-note">' + typeBits + " · last " + games + " battles</div>";
+    return '<div class="bat-metric ' + (m[2] || "") + '"><span class="da-val">' + m[1] + '</span><span class="da-lbl">' + m[0] + "</span></div>";
+  }).join("") + '<div class="bat-note"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> ' + typeBits +
+    " · last " + games + " battles, newest first</div>";
 
   battlesSrcEl.textContent = "Win rates come from the official Clash Royale API battle log for #" +
     (currentPlayerTag || "").replace("#", "") + ".";

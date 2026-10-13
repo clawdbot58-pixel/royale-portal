@@ -161,7 +161,12 @@ function scoreArchetype(arch, index, fav) {
   var roles = owned.map(function(n) { return (CARD_ROLES[n] || {}).role; });
   if (roles.indexOf("win-condition") !== -1) score += 12;
   if (roles.indexOf("spell") !== -1) score += 6;
-  var air = owned.filter(function(n) { return CARD_ROLES[n] && CARD_ROLES[n].air; }).length;
+  // Only troops/buildings count as air answers — a spell that can hit air
+  // (Fireball, Lightning, Goblin Curse) is not a durable answer.
+  var air = owned.filter(function(n) {
+    var r = CARD_ROLES[n];
+    return r && r.air && r.role !== "spell";
+  }).length;
   if (air >= 2) score += 6;
   var cycle = owned.reduce(function(a, n) { return a + ((CARD_ROLES[n] || {}).cycle || 4); }, 0) / (owned.length || 1);
   if (cycle <= 3.5) score += 4;

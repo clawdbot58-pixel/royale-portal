@@ -53,32 +53,45 @@
 
       <div class="tab-panel active" id="tab-collection">
         <div class="controls">
-          <div class="rarity-ms" id="rarity-ms">
-            <button class="ms-btn" id="rarity-btn">Rarity ▾</button>
-            <div class="ms-dropdown" id="rarity-dropdown">
-              <label class="ms-opt"><input type="checkbox" value="all" checked /> <span>All</span></label>
-              <label class="ms-opt"><input type="checkbox" value="common" /> <span>Common</span></label>
-              <label class="ms-opt"><input type="checkbox" value="rare" /> <span>Rare</span></label>
-              <label class="ms-opt"><input type="checkbox" value="epic" /> <span>Epic</span></label>
-              <label class="ms-opt"><input type="checkbox" value="legendary" /> <span>Legendary</span></label>
-              <label class="ms-opt"><input type="checkbox" value="champion" /> <span>Champion</span></label>
-              <label class="ms-opt"><input type="checkbox" value="tower" /> <span>Tower Troop</span></label>
+          <span class="controls-label"><i class="fa-solid fa-filter" aria-hidden="true"></i> Filter</span>
+          <div class="ctl ctl-rarity">
+            <span class="ctl-cap">Rarity</span>
+            <div class="rarity-ms" id="rarity-ms">
+              <button class="ms-btn" id="rarity-btn" aria-haspopup="true" aria-expanded="false">All rarities <i class="fa-solid fa-chevron-down" aria-hidden="true"></i></button>
+              <div class="ms-dropdown" id="rarity-dropdown">
+                <label class="ms-opt"><input type="checkbox" value="all" checked /> <span>All</span></label>
+                <label class="ms-opt"><input type="checkbox" value="common" /> <span>Common</span></label>
+                <label class="ms-opt"><input type="checkbox" value="rare" /> <span>Rare</span></label>
+                <label class="ms-opt"><input type="checkbox" value="epic" /> <span>Epic</span></label>
+                <label class="ms-opt"><input type="checkbox" value="legendary" /> <span>Legendary</span></label>
+                <label class="ms-opt"><input type="checkbox" value="champion" /> <span>Champion</span></label>
+                <label class="ms-opt"><input type="checkbox" value="tower" /> <span>Tower Troop</span></label>
+              </div>
             </div>
           </div>
-          <select id="status-select">
-            <option value="all">All cards</option>
-            <option value="owned">Owned</option>
-            <option value="undiscovered">Undiscovered</option>
-            <option value="evo-capable">Evolution-capable</option>
-            <option value="evo-unlocked">Evolutions unlocked</option>
-            <option value="hero-capable">Hero-capable</option>
-          </select>
-          <select id="sort-select">
-            <option value="upgrade">Upgrade Priority</option>
-            <option value="level">Level ↓</option>
-            <option value="rarity-group">Rarity + Level</option>
-          </select>
-          <input type="text" id="search-input" placeholder="Search cards…" />
+          <div class="ctl">
+            <span class="ctl-cap">Status</span>
+            <select id="status-select" aria-label="Filter by collection status">
+              <option value="all">All statuses</option>
+              <option value="owned">Owned</option>
+              <option value="undiscovered">Undiscovered</option>
+              <option value="evo-capable">Evolution-capable</option>
+              <option value="evo-unlocked">Evolutions unlocked</option>
+              <option value="hero-capable">Hero-capable</option>
+            </select>
+          </div>
+          <div class="ctl">
+            <span class="ctl-cap">Sort</span>
+            <select id="sort-select" aria-label="Sort cards">
+              <option value="upgrade">Upgrade priority</option>
+              <option value="level">Level, high to low</option>
+              <option value="rarity-group">Rarity, then level</option>
+            </select>
+          </div>
+          <div class="ctl ctl-search">
+            <span class="ctl-cap">Search</span>
+            <input type="search" id="search-input" placeholder="Card name…" aria-label="Search cards by name" />
+          </div>
           <span id="count-label" class="count-label"></span>
         </div>
         <div id="card-grid" class="card-grid">
@@ -87,6 +100,7 @@
       </div>
 
       <div class="tab-panel" id="tab-deck">
+        <div class="deck-guide" id="deck-guide" aria-label="How to build a deck"></div>
         <div class="deck-head">
           <div class="deck-summary" id="deck-summary"></div>
           <div class="deck-actions">
@@ -94,7 +108,7 @@
             <button class="btn-secondary" id="deck-share"><i class="fa-solid fa-link" aria-hidden="true"></i> Copy link</button>
             <button class="btn-secondary" id="deck-reset"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i> Use my current deck</button>
             <label class="tower-pick">Tower troop
-              <select id="tower-select"></select>
+              <select id="tower-select" aria-label="Equipped tower troop"></select>
             </label>
           </div>
         </div>
@@ -104,7 +118,7 @@
         <section class="deck-analysis" id="deck-analysis" aria-label="Deck analysis"></section>
         <div class="deck-picker">
           <div class="picker-head">
-            <h3>Add a card</h3>
+            <h3><i class="fa-solid fa-plus" aria-hidden="true"></i> Add a card <span id="pick-count" class="pick-count"></span></h3>
             <input type="search" id="pick-filter" class="pick-filter" placeholder="Filter by name, role, or a special slot…" aria-label="Filter cards to add" />
           </div>
           <div id="deck-pick-list" class="pick-list"></div>

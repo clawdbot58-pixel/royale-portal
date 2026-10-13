@@ -58,6 +58,9 @@ function deckCoverage(cards) {
     if (r.role === "spell") {
       cov.spells.push(c);
       if (e <= 3) cov.small.push(c); else cov.big.push(c);
+      // Spells stay out of air/splash coverage: Zap answers Minions but
+      // nothing stops a Balloon, so a spell-only "air defence" is a lie
+      // the grade must not tell. Durable answers only (see scoreArchetype).
       return;                        // spells are not troops/buildings
     }
     if (r.role === "win-condition") cov.win.push(c);
@@ -335,6 +338,7 @@ function autofillDeck(pool) {
       if (specials(picked[j])) { drop = j; break; }
     }
     if (drop < 0) break;
+    used[picked[drop].name] = false;
     picked.splice(drop, 1);
     var fill = null, fillScore = -1e9;
     for (var k = 0; k < pool.length; k++) {
@@ -348,6 +352,78 @@ function autofillDeck(pool) {
     used[fill.name] = true;
   }
 
+  // Playability repair: a deck with no tower-taking card (or no spell to
+  // cycle) is unplayable, so when the pool has one, trade the pick whose
+  // removal costs the least coverage for the best available candidate —
+  // cheapest win condition first, small (cyclable) spells first.
+  function capsOk(list) {
+    if (list.filter(specials).length > 4) return false;
+    if (list.filter(function(x) { return cardFlags(x).isChampion; }).length > 2) return false;
+    if (list.filter(function(x) { return cardFlags(x).evoUnlocked; }).length > 2) return false;
+    if (list.filter(function(x) { return cardFlags(x).heroCapable; }).length > 2) return false;
+    return fitsSpecialSlots(list);
+  }
+
+  function playabilityFix(wanted, sortAdds) {
+    if (picked.some(function(c) { return wanted(roleEntry(c.name) || {}); })) return;
+    var adds = pool.filter(function(c) {
+      return !used[c.name] && wanted(roleEntry(c.name) || {});
+    }).sort(sortAdds);
+    if (!adds.length) return;
+
+    var base = deckProgress(picked);
+    var nowOk = {};
+    deckChecks(picked).forEach(function(x) { nowOk[x.id] = x.ok; });
+
+    for (var a = 0; a < adds.length; a++) {
+      var add = adds[a];
+      var bestDrop = -1, bestLoss = Infinity, bestBroken = Infinity, bestCost = -1;
+      for (var d = 0; d < picked.length; d++) {
+        var trial = picked.filter(function(x) { return x !== picked[d]; }).concat([add]);
+        if (!capsOk(trial)) continue;
+        var afterOk = {};
+        deckChecks(trial).forEach(function(x) { afterOk[x.id] = x.ok; });
+        var broken = 0;
+        DECK_CHECKS.forEach(function(x) {
+          if (nowOk[x.id] && !afterOk[x.id]) broken++;
+        });
+        var loss = base - deckProgress(trial);
+        var cost = elixirOf(picked[d]);
+        if (loss < bestLoss - 1e-9 ||
+            (Math.abs(loss - bestLoss) <= 1e-9 &&
+             (broken < bestBroken ||
+              (broken === bestBroken && cost > bestCost)))) {
+          bestLoss = loss; bestBroken = broken; bestDrop = d; bestCost = cost;
+        }
+      }
+      if (bestDrop < 0) continue;
+      var dropped = picked[bestDrop];
+      picked.splice(bestDrop, 1, add);
+      used[dropped.name] = false;
+      used[add.name] = true;
+      return;
+    }
+  }
+
+  playabilityFix(function(r) {
+    return r.role === "win-condition" || hasTag(r, "win-condition");
+  }, function(a, b) {
+    var ea = elixirOf(a), eb = elixirOf(b);
+    if (ea !== eb) return ea - eb;                    // cheap = reachable
+    var la = a.maxLevel ? a.level / a.maxLevel : 0;
+    var lb = b.maxLevel ? b.level / b.maxLevel : 0;
+    if (Math.abs(la - lb) > 0.01) return lb - la;
+    return a.name.localeCompare(b.name);
+  });
+  playabilityFix(function(r) { return r.role === "spell"; }, function(a, b) {
+    var sa = elixirOf(a) <= 3 ? 0 : 1;
+    var sb = elixirOf(b) <= 3 ? 0 : 1;
+    if (sa !== sb) return sa - sb;                    // small = cyclable
+    var ea = elixirOf(a), eb = elixirOf(b);
+    if (ea !== eb) return ea - eb;
+    return a.name.localeCompare(b.name);
+  });
+
   var assigned = assignSlots(picked);
   return picked.map(function(c) {
     return { name: c.name, slot: assigned.slots[c.name] || "normal" };
@@ -355,14 +431,17 @@ function autofillDeck(pool) {
 }
 
 // ---- Swap suggestions -------------------------------------------------
-// For every coverage gap, which owned card would close it, and which deck
-// card is the least loss to make room.
+// For every coverage gap: which owned card would close it, and which deck
+// card is the least loss to make room. A swap is only suggested when the
+// post-swap deck (8 cards) actually closes the gap AND keeps every check
+// that already passes.
 function swapSuggestions(cards, pool) {
   var out = [];
   var inDeck = {};
   cards.forEach(function(c) { inDeck[c.name] = true; });
 
   var checks = deckChecks(cards);
+
   checks.forEach(function(chk) {
     if (chk.ok || chk.id === "avg" || chk.id === "cycle") return;
 
@@ -381,17 +460,31 @@ function swapSuggestions(cards, pool) {
     });
 
     var victims = victimOrder(cards, chk.id);
-    candidates.slice(0, 3).forEach(function(cand) {
-      var victim = victims.shift();
-      if (!victim) return;
-      out.push({
-        check: chk.id,
-        label: chk.label,
-        inn: cand.name,
-        out: victim,
-        why: chk.detail,
-      });
-    });
+    var offered = 0;
+    for (var i = 0; i < candidates.length && offered < 3; i++) {
+      var cand = candidates[i];
+      for (var j = 0; j < victims.length; j++) {
+        var victimName = victims[j];
+        var after = cards.filter(function(c) { return c.name !== victimName; })
+                         .concat([cand]);
+        var afterOk = {};
+        deckChecks(after).forEach(function(a) { afterOk[a.id] = a.ok; });
+        if (!afterOk[chk.id]) continue;               // gap not closed
+        var breaks = checks.some(function(p) {
+          return p.ok && p.id !== chk.id && !afterOk[p.id];
+        });
+        if (breaks) continue;                         // would break a pass
+        out.push({
+          check: chk.id,
+          label: chk.label,
+          inn: cand.name,
+          out: victimName,
+          why: chk.detail,
+        });
+        offered++;
+        break;
+      }
+    }
   });
 
   return out;
@@ -404,34 +497,33 @@ function coversCheck(card, checkId, cards) {
   return !!(chk && chk.ok);
 }
 
-// Deck cards to sacrifice, least valuable first: anything whose
-// contribution is already covered by the rest of the deck goes first.
+// Deck cards to sacrifice, least valuable first: a card goes earlier the
+// fewer passing checks its removal would break, then by lower level.
 function victimOrder(cards, checkId) {
-  var weight = {};
-  DECK_CHECKS.forEach(function(d) { weight[d.id] = d.weight; });
-
   return cards.slice().sort(function(a, b) {
     var ra = redundancy(a, cards, checkId);
     var rb = redundancy(b, cards, checkId);
     if (ra !== rb) return rb - ra;
     var la = a.maxLevel ? a.level / a.maxLevel : 0;
     var lb = b.maxLevel ? b.level / b.maxLevel : 0;
-    return la - lb;
+    if (la !== lb) return la - lb;
+    return a.name.localeCompare(b.name);
   }).map(function(c) { return c.name; });
 }
 
-// How replaceable is this card? +1 for every check it helps satisfy
-// that would still be satisfied without it.
+// How safe is it to remove this card? +1 for every check that currently
+// passes (other than the gap being filled) and still passes without it —
+// i.e. the removal breaks fewer of the deck's passing checks.
 function redundancy(card, cards, gapId) {
   var others = cards.filter(function(c) { return c.name !== card.name; });
-  var without = {};
+  var kept = {}, without = {};
+  deckChecks(cards).forEach(function(chk) { kept[chk.id] = chk.ok; });
   deckChecks(others).forEach(function(chk) { without[chk.id] = chk.ok; });
 
   var count = 0;
-  deckChecks(cards).forEach(function(chk) {
-    if (!chk.ok || chk.id === gapId) return;
-    if (!coversCheck(card, chk.id, others)) return;   // this card contributes
-    if (without[chk.id]) count++;                     // but is not load-bearing
+  DECK_CHECKS.forEach(function(d) {
+    if (d.id === gapId || !kept[d.id]) return;
+    if (without[d.id]) count++;
   });
   return count;
 }

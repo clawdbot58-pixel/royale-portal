@@ -956,3 +956,432 @@ button i { margin-right: 5px; }
 .da-val, .bm-val, .ds-timing-val, .bc-nums, .br-score, .bd-rec, .sugg-score {
   font-variant-numeric: tabular-nums;
 }
+
+/* ===== Premium polish (additive overrides) ===== */
+/* Everything in this section appends to the rules above: same or higher
+   specificity, later source order, no existing selector renamed or removed. */
+
+/* --- 1. Vertical rhythm --- */
+/* One spacing scale for panel interiors: 0.5rem under a section heading,
+   0.75rem of padding after a divider line, 0.85rem between metric blocks,
+   1rem between top-level blocks. */
+.bat-head { margin-bottom: 1rem; }
+.da-swaps { padding-top: 0.75rem; }
+.da-swaps h4 { margin-bottom: 0.5rem; }
+.bat-block h3 { margin-bottom: 0.5rem; }
+.ds-metrics { padding-bottom: 0.85rem; margin-bottom: 0.85rem; }
+.rules-table { margin-bottom: 0.75rem; }
+
+/* --- 2. Tabular numerals --- */
+.deck-summary, .pstats, .sugg-summary, .sugg-stats, .sugg-plan li,
+.da-grade, .da-need, .da-detail, .ci-lv, .ci-badge, .ds-meta, .pick-meta,
+.ds-cycle-card b, .ds-band, .ds-ability-total, .inv-decks, .inv-cost,
+.bat-note, .bd-foot, .rules-table {
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- 3. Interactive states --- */
+/* The free-standing selects had no transition, so any new state snapped. */
+.tower-pick select, .sugg-head select, .ds-slot, .ds-remove, .pick-filter {
+  transition: border-color 0.15s ease, box-shadow 0.15s ease,
+              background-color 0.15s ease, transform 0.1s ease;
+}
+.tower-pick select:hover, .sugg-head select:hover, .ds-slot:hover {
+  border-color: var(--text-muted);
+}
+.tower-pick select:focus, .sugg-head select:focus, .ds-slot:focus,
+.pick-filter:focus {
+  border-color: var(--accent2);
+  box-shadow: 0 0 0 3px rgba(91, 127, 255, 0.15);
+}
+/* Row/card hovers were border-only; add a faint fill so the target reads. */
+.pick:hover { background: rgba(91, 127, 255, 0.05); }
+.da-swap:hover { background: rgba(91, 127, 255, 0.05); }
+.invest-row:hover { background: rgba(91, 127, 255, 0.06); }
+.bat-row:hover { background: rgba(91, 127, 255, 0.05); }
+/* Tactile press for the interactive elements missing one. */
+.tab-btn:active, .ds-remove:active, .invest-row:active, .bat-row:active {
+  transform: translateY(1px);
+}
+/* Keyboard focus must be visible on every interactive element. */
+a:focus-visible, .btn-primary:focus-visible, .ds-remove:focus-visible,
+.invest-row:focus-visible, .bat-row:focus-visible {
+  outline: 2px solid var(--accent2);
+  outline-offset: 2px;
+}
+
+/* --- 4. Empty-state consistency --- */
+/* One shape for every "nothing here" box, whether it spans the card grid
+   or sits inside a panel. */
+.empty-state {
+  padding: 1.75rem 1rem;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  background: rgba(0, 0, 0, 0.15);
+}
+/* The stats panel renders an empty bordered strip while the deck is empty;
+   hide it — the analysis panel below carries the real empty state. */
+#deck-stats:empty { display: none; }
+
+/* --- 5. Mobile --- */
+@media (max-width: 700px) {
+  /* minmax(280px/320px) tracks overflow the panel below ~700px. */
+  .bat-decks, .bat-cards, .bat-faced { grid-template-columns: 1fr; }
+  .bat-summary { gap: 1rem; }
+  .tab-panel { padding: 0.75rem; }
+  .deck-analysis, .invest, .bat-block, .deck-check { padding: 0.7rem 0.75rem; }
+  .sugg-card { padding: 0.7rem 0.75rem; }
+  .sugg-top { flex-wrap: wrap; row-gap: 0.4rem; }
+  .sugg-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sugg-stats { gap: 0.35rem 0.65rem; }
+  .ds-cycle, .ds-ladder { margin-bottom: 0.7rem; }
+}
+@media (max-width: 600px) {
+  /* 26px track (see the 600px block above) with a 30px image overflowed 4px. */
+  .invest-row img { width: 26px; height: 26px; }
+}
+@media (max-width: 480px) {
+  .deck-slot { grid-template-columns: 36px 1fr auto; }
+  .deck-slot img { width: 36px; height: 36px; }
+}
+
+/* ==========================================================================
+   UI pass 2 — hierarchy, labels, affordances, 390px containment.
+   Appended last on purpose: every selector below either targets a new element
+   or raises specificity on an existing one, so nothing upstream changes.
+   ========================================================================== */
+
+/* --- Type & rhythm primitives --- */
+.tab-panel { padding: 1.15rem 1.15rem 1.25rem; }
+h1, h2, h3, h4 { letter-spacing: -0.01em; }
+/* Section headings inside panels read as headings, not bold body text. */
+.deck-picker h3, .picker-head h3 {
+  font-size: 0.9rem; color: var(--text); font-weight: 700;
+  display: flex; align-items: baseline; gap: 0.4rem; flex-wrap: wrap;
+}
+.deck-picker h3 > i { color: var(--accent); font-size: 0.8rem; }
+
+/* --- 1. Deck Builder: the guide that answers "what do I do first?" --- */
+.deck-guide {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 0.75rem 0.9rem;
+  margin-bottom: 1rem;
+}
+.guide-steps {
+  list-style: none; display: flex; flex-wrap: wrap; gap: 0.5rem 0.6rem;
+  counter-reset: none; margin: 0; padding: 0;
+}
+.guide-step {
+  display: flex; align-items: center; gap: 0.5rem;
+  flex: 1 1 180px; min-width: 0;
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 0.45rem 0.55rem;
+}
+.guide-num {
+  flex: none; width: 22px; height: 22px; border-radius: 50%;
+  display: grid; place-items: center;
+  font-size: 0.72rem; font-weight: 700;
+  background: var(--surface); color: var(--text-muted);
+  border: 1px solid var(--border);
+  font-variant-numeric: tabular-nums;
+}
+.guide-text {
+  display: flex; flex-direction: column; min-width: 0;
+  font-size: 0.68rem; color: var(--text-muted); line-height: 1.35;
+}
+.guide-text strong { font-size: 0.8rem; color: var(--text); font-weight: 600; }
+.guide-step.current { border-color: rgba(240, 196, 63, 0.45); background: rgba(240, 196, 63, 0.05); }
+.guide-step.current .guide-num { background: var(--accent); color: #0e0f1a; border-color: var(--accent); }
+.guide-step.current .guide-text strong { color: var(--accent); }
+.guide-step.done .guide-num { background: rgba(61, 214, 140, 0.16); color: var(--success); border-color: rgba(61, 214, 140, 0.45); }
+.guide-step.done .guide-text strong { color: var(--text-muted); text-decoration: line-through; text-decoration-color: rgba(139, 141, 168, 0.4); }
+
+.guide-meter {
+  display: flex; flex-wrap: wrap; gap: 0.4rem 1.1rem;
+  margin-top: 0.6rem; padding-top: 0.55rem; border-top: 1px solid var(--border);
+  font-size: 0.72rem; color: var(--text-muted);
+}
+.guide-meter b { color: var(--text); font-weight: 700; font-variant-numeric: tabular-nums; }
+.guide-meter-cell.grade-s b { color: var(--accent); }
+.guide-meter-cell.grade-a b { color: var(--success); }
+.guide-meter-cell.grade-b b { color: var(--accent2); }
+.guide-meter-cell.grade-c b { color: var(--warning); }
+.guide-meter-cell.grade-d b, .guide-meter-cell.grade-e b { color: var(--accent3); }
+
+/* --- 2. Deck summary: labelled cells, not a run-on sentence --- */
+.deck-head {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start; gap: 0.85rem 1.25rem; margin-bottom: 1rem;
+}
+.deck-summary { display: flex; flex-direction: column; gap: 0.55rem; min-width: 0; }
+.dsum-cells { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.dsum-cell {
+  flex: 1 1 92px; min-width: 0;
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 0.4rem 0.55rem;
+  display: flex; flex-direction: column; gap: 1px;
+}
+.dsum-val {
+  font-size: 1.15rem; font-weight: 700; color: var(--text); line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+.dsum-val small { font-size: 0.68rem; font-weight: 600; color: var(--text-muted); margin-left: 1px; }
+.dsum-lbl { font-size: 0.66rem; color: var(--text-muted); line-height: 1.3; }
+.dsum-cell.ok .dsum-val { color: var(--success); }
+.dsum-cell.warn .dsum-val { color: var(--warning); }
+
+.dsum-tail { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.9rem; }
+.dsum-meta { font-size: 0.76rem; color: var(--text-muted); display: inline-flex; align-items: center; gap: 0.35rem; }
+.dsum-meta i { color: var(--accent); font-size: 0.7rem; }
+.dsum-meta strong { color: var(--text); font-weight: 600; }
+.dsum-slots { font-size: 0.74rem; color: var(--text-muted); display: flex; flex-wrap: wrap; gap: 0.25rem 0.6rem; }
+.dsum-slots span { white-space: nowrap; }
+.dsum-slots i { color: var(--accent); font-style: normal; }
+.dsum-slots .dim { color: var(--text-muted); font-style: italic; }
+
+.deck-actions { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; justify-content: flex-end; }
+.deck-actions .btn-secondary { font-size: 0.8rem; }
+
+/* --- 3. Rule check reads as a status bar --- */
+.deck-check { padding: 0.7rem 0.9rem; }
+.deck-check h3 { display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; }
+.deck-check.ok { background: rgba(61, 214, 140, 0.06); border-color: rgba(61, 214, 140, 0.35); }
+.deck-check.has-notes { background: rgba(61, 214, 140, 0.05); }
+.deck-check.has-issues { background: rgba(224, 74, 90, 0.06); border-color: rgba(224, 74, 90, 0.35); }
+.deck-check ul { margin-left: 1.15rem; }
+.deck-check li { margin-bottom: 0.15rem; }
+
+/* --- 4. Deck slots: readable names, labelled elixir, explicit slot meaning --- */
+.deck-slots { gap: 0.55rem; margin-bottom: 0.9rem; }
+.deck-slot { padding: 0.55rem; gap: 0.4rem 0.5rem; }
+.ds-name { font-weight: 600; font-size: 0.82rem; }
+.ds-name i { font-size: 0.7rem; margin-left: 3px; }
+.ds-name i.fa-bolt { color: var(--accent); }
+.ds-name i.fa-star { color: var(--accent2); }
+.ds-meta { font-variant-numeric: tabular-nums; }
+.ds-slot { grid-column: 1 / 4; padding: 0.35rem 0.45rem; font-size: 0.74rem; }
+.ds-remove { width: 28px; height: 28px; display: grid; place-items: center; }
+/* The slot value is the one control in the row with real consequences, so the
+   selected slot gets colour instead of being indistinguishable from a label. */
+.ds-slot option[value="champion"] { color: var(--rarity-champion); font-weight: 600; }
+.ds-slot option[value="evolution"] { color: var(--accent); font-weight: 600; }
+.ds-slot option[value="hero"] { color: var(--accent2); font-weight: 600; }
+.ds-slot option[value="wild"] { color: var(--success); font-weight: 600; }
+
+.ds-elixir {
+  grid-column: 1 / 4; display: grid; align-items: center;
+  grid-template-columns: minmax(0, 1fr) auto auto; gap: 0.4rem;
+  position: static;
+}
+.ds-elixir::before { display: none; }
+.ds-elixir-track { height: 5px; background: rgba(255, 255, 255, 0.07); border-radius: 99px; overflow: hidden; display: block; }
+.ds-elixir-track > i {
+  display: block; height: 100%; border-radius: 99px;
+  background: linear-gradient(90deg, var(--accent2), var(--accent));
+}
+.ds-elixir.cheap .ds-elixir-track > i { background: var(--success); }
+.ds-elixir-num { font-size: 0.72rem; font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; }
+.ds-elixir.cheap .ds-elixir-num { color: var(--success); }
+.ds-elixir-cap { font-size: 0.6rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+
+/* --- 5. Pick list: show that the row is a button, and how much room is left --- */
+.picker-head { gap: 0.6rem; margin-bottom: 0.55rem; }
+.pick-count { font-size: 0.72rem; font-weight: 400; color: var(--text-muted); }
+.pick-count.full { color: var(--warning); }
+.pick-list { grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); }
+.pick { position: relative; padding-right: 2rem; }
+.pick > span:not(.pick-meta):not(.pick-add) { flex: 1 1 auto; }
+.pick-meta { flex: 0 0 auto; }
+.pick-add {
+  position: absolute; right: 0.35rem; top: 50%; transform: translateY(-50%);
+  width: 20px; height: 20px; border-radius: 50%;
+  display: grid; place-items: center;
+  background: rgba(240, 196, 63, 0.12); color: var(--accent);
+  font-size: 0.6rem;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.pick:hover .pick-add { background: var(--accent); color: #0e0f1a; }
+.pick:disabled { opacity: 0.45; cursor: not-allowed; }
+.pick:disabled .pick-add { display: none; }
+.pick:disabled:hover { border-color: var(--border); background: var(--surface2); }
+
+/* --- 6. Collection cards: rarity is a label, the name is the headline --- */
+.card-rarity {
+  font-size: 0.6rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.07em; line-height: 1.4; margin-bottom: 1px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.card-n { font-size: 0.8rem; font-weight: 600; color: var(--text); line-height: 1.25; min-height: 2.5em; }
+.ci-lv { display: flex; justify-content: space-between; align-items: baseline; gap: 0.3rem; margin-top: 0.25rem; }
+.ci-need { color: var(--text-muted); font-weight: 500; font-size: 0.6rem; }
+.ci-need.can-up { color: var(--success); font-weight: 700; }
+.ci-maxed { color: var(--accent); font-weight: 700; font-size: 0.6rem; letter-spacing: 0.06em; }
+.ci-undiscovered { color: var(--text-muted); font-style: italic; font-weight: 500; }
+.card-item:not(.owned) .card-n, .card-item:not(.owned) .card-rarity { color: var(--text-muted) !important; }
+.ci-badge { margin-top: 0.25rem; }
+.ci-role { margin-top: 0.15rem; }
+
+/* --- 7. Collection controls: every control says what it is --- */
+.controls { gap: 0.6rem 0.7rem; padding: 0.6rem 0.75rem; }
+.controls-label {
+  display: none; align-items: center; gap: 0.35rem;
+  font-size: 0.68rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.07em; color: var(--text-muted);
+}
+.ctl { display: flex; flex-direction: column; gap: 0.18rem; min-width: 0; }
+.ctl-cap {
+  font-size: 0.62rem; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.06em; color: var(--text-muted); line-height: 1.2;
+}
+.ctl-search { flex: 1 1 160px; }
+.ctl-search .ctl-cap { display: none; }
+.rarity-ms { width: 100%; }
+.ms-btn { width: 100%; display: inline-flex; align-items: center; justify-content: space-between; gap: 0.4rem; }
+.ms-btn i { font-size: 0.6rem; opacity: 0.7; }
+.controls select, .controls input { width: 100%; }
+.count-label { align-self: flex-end; padding-bottom: 0.35rem; }
+@media (min-width: 601px) { .controls-label { display: inline-flex; } } 
+
+/* --- 8. Battles: readable metrics, loading + empty states --- */
+.bat-metric .da-val { font-size: 1.1rem; }
+.bat-metric.good .da-val { color: var(--success); }
+.bat-metric.warn .da-val { color: var(--warning); }
+.bat-metric.bad .da-val { color: var(--accent3); }
+.bat-note { display: flex; align-items: center; gap: 0.35rem; margin-top: 0.2rem; }
+.bat-note i { color: var(--accent2); font-size: 0.68rem; }
+.empty-state.is-loading { display: flex; flex-direction: column; align-items: center; gap: 0.6rem; }
+.empty-state.is-loading .spinner { width: 24px; height: 24px; border-width: 2px; margin: 0; }
+.bat-row { align-items: center; }
+.br-res { font-size: 0.72rem; }
+.br-deck { line-height: 1.5; }
+.bat-block h3 i { color: var(--accent); font-size: 0.78rem; }
+
+/* --- 9. Shared interaction + focus completions --- */
+:where(select, input, button, a):focus-visible {
+  outline: 2px solid var(--accent2);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+.btn-primary:hover { color: #0e0f1a; }
+.ds-remove:hover { background: rgba(224, 74, 90, 0.16); border-color: rgba(224, 74, 90, 0.5); }
+.deck-slot .ds-slot:focus-visible { outline-offset: 1px; }
+.pick-list .pick:focus-visible, .deck-slots .ds-remove:focus-visible { outline-offset: -2px; }
+
+/* --- 10. 390px containment: nothing may exceed the viewport --- */
+@media (max-width: 700px) {
+  .container { padding: 0 0.9rem; }
+  .tab-panel { padding: 0.8rem 0.75rem 0.9rem; }
+  .deck-head { grid-template-columns: minmax(0, 1fr); }
+  .deck-actions { justify-content: flex-start; }
+  .deck-actions .btn-secondary { flex: 1 1 auto; }
+  .tower-pick { flex: 1 1 100%; }
+  .tower-pick select { width: 100%; }
+  .dsum-cells { gap: 0.4rem; }
+  .dsum-cell { flex: 1 1 calc(50% - 0.2rem); }
+  .dsum-val { font-size: 1.05rem; }
+  /* Search + count stay on one row; the selects pair up above them. */
+  .controls { position: static; backdrop-filter: none; -webkit-backdrop-filter: none; }
+  .ctl-search { flex: 1 1 140px; }
+  .controls-label { display: flex; flex-basis: 100%; }
+  .ctl { flex: 1 1 140px; }
+  .pick-list { grid-template-columns: minmax(0, 1fr); }
+  .guide-step { flex: 1 1 100%; }
+  .guide-meter { gap: 0.3rem 0.9rem; }
+  .bat-summary { gap: 0.7rem 1.1rem; }
+  .bat-metric { min-width: 62px; }
+  .deck-check, .deck-analysis, .invest, .bat-block, .sugg-card { padding: 0.65rem 0.7rem; }
+}
+@media (max-width: 480px) {
+  /* 36px + 1fr + 28px removed button left the name ~70px wide at 390px.
+     The name now spans under the image so it never truncates. */
+  .deck-slot {
+    grid-template-columns: 40px minmax(0, 1fr) 28px;
+    grid-template-areas: "img name rm" "slot slot slot" "badges badges badges" "elixir elixir elixir";
+    row-gap: 0.4rem;
+  }
+  .deck-slot img { grid-area: img; width: 40px; height: 40px; }
+  .ds-info { grid-area: name; }
+  .ds-remove { grid-area: rm; }
+  .ds-slot { grid-area: slot; grid-column: 1 / -1; }
+  .ds-badges { grid-area: badges; grid-column: 1 / -1; }
+  .ds-elixir { grid-area: elixir; grid-column: 1 / -1; }
+  .ds-name { white-space: normal; overflow: visible; }
+  .card-n { min-height: 0; font-size: 0.72rem; }
+  .card-rarity { font-size: 0.55rem; }
+  .da-grid { grid-template-columns: minmax(0, 1fr); }
+  .ds-timing-grid { grid-template-columns: minmax(0, 1fr); }
+  .ds-rung { grid-template-columns: 26px 44px minmax(0, 1fr); gap: 0.4rem; }
+}
+
+/* --- 11. Corrections from the first render pass --- */
+/* The summary must not sit beside a wide action row: it squeezed the cells
+   into two ragged rows. Full width, actions underneath. `display` is reset
+   explicitly — the original rule is flex with space-between, and only setting
+   grid-template-columns would leave it flex and shrink the summary to content. */
+.deck-head { display: grid; grid-template-columns: minmax(0, 1fr); }
+.deck-actions { justify-content: flex-start; }
+.dsum-cells { align-items: stretch; }
+.dsum-cell { flex: 1 1 120px; }
+.dsum-cell.grade-s .dsum-val { color: var(--accent); }
+.dsum-cell.grade-a .dsum-val { color: var(--success); }
+.dsum-cell.grade-b .dsum-val { color: var(--accent2); }
+.dsum-cell.grade-c .dsum-val { color: var(--warning); }
+.dsum-cell.grade-d .dsum-val, .dsum-cell.grade-e .dsum-val { color: var(--accent3); }
+
+/* The pick list is a working set, not the whole collection. */
+.pick-more {
+  grid-column: 1 / -1; font-size: 0.72rem; color: var(--text-muted);
+  padding: 0.45rem 0.5rem; border: 1px dashed var(--border);
+  border-radius: var(--radius-sm); background: rgba(0, 0, 0, 0.15);
+}
+
+/* Matchup rows overflowed 390px: a nowrap name plus a 60px-min bar plus a
+   nowrap figure is more than the row has. Wrap, and let the bar shrink. */
+@media (max-width: 700px) {
+  .bat-card, .bat-faced-row { flex-wrap: wrap; row-gap: 0.15rem; }
+  .bat-card .bc-name, .bat-faced-row .bf-name { flex: 1 1 100%; }
+  .bd-bar { flex: 1 1 auto; min-width: 0; }
+  .bc-nums { flex: 0 0 auto; }
+}
+
+/* --- 12. Two inherited declarations the earlier passes inherited wrong --- */
+/* .deck-summary was flex-row + align-items:center. Flipping it to a column
+   without resetting alignment left the tower line and the special-slot list
+   centred while the metric cells stretched. */
+.deck-summary { align-items: stretch; }
+.dsum-cells { align-items: stretch; }
+/* Separators between the "name → slot" pairs so a wrapped line stays readable. */
+.dsum-slots span + span::before { content: "·"; margin-right: 0.45rem; color: var(--border); }
+
+/* The old 600px block sets flex-direction:column on .controls, which stacks
+   five controls into a panel taller than the viewport. A 2-column grid keeps
+   every filter on one line pair and the search full width. */
+@media (max-width: 700px) {
+  .controls {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: end;
+    gap: 0.5rem;
+  }
+  .controls-label { grid-column: 1 / -1; }
+  .ctl { flex: none; min-width: 0; }
+  .ctl-rarity, .ctl-search { grid-column: 1 / -1; }
+  .count-label { grid-column: 1 / -1; align-self: auto; padding-bottom: 0; text-align: right; }
+  .ctl-cap { font-size: 0.58rem; }
+}
+
+/* --- 13. Final density fixes --- */
+/* A flex:1 bar stretched the full panel width on desktop, which read as a
+   huge bar for a 1-game matchup. Cap it; the number beside it carries the rest. */
+.bat-faced-row .bd-bar { max-width: 170px; }
+.bd-fill, .bd-bar { border-radius: 99px; }
+/* The card image is the anchor of a collection card; the rarity label sits
+   directly under it, so the two must share a left edge exactly. */
+.card-body > .card-rarity { margin-bottom: 2px; }
+/* Long card names wrap to two lines rather than truncating on a 390px phone. */
+.card-n-text { white-space: normal; overflow-wrap: anywhere; }
