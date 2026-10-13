@@ -44,7 +44,8 @@ function cardFlags(merged) {
 // everything else → normal. Returns {slots: {name: slot}, specials: [...],
 // overflow: [...]} where overflow are special cards with no slot left.
 function assignSlots(cards) {
-  var used = { champion: 0, evolution: 0, hero: 0, wild: 0 };
+  // No champion slot exists: champions activate in the hero slot or wild.
+  var used = { evolution: 0, hero: 0, wild: 0 };
   var out = {}, specials = [], overflow = [];
   var flags = cards.map(cardFlags);
 
@@ -54,9 +55,8 @@ function assignSlots(cards) {
   }
 
   flags.forEach(function(f) {
-    if (f.isChampion && place(f, "champion")) return;
     if (f.evoUnlocked && place(f, "evolution")) return;
-    if (f.heroCapable && place(f, "hero")) return;
+    if ((f.heroCapable || f.isChampion) && place(f, "hero")) return;
     if (f.isChampion || f.evoUnlocked || f.heroCapable) {
       if (place(f, "wild")) return;
       overflow.push(f.name);
@@ -88,7 +88,7 @@ function deckViolations(cards, tower) {
   var maxC = (typeof SLOT_RULES !== "undefined" ? SLOT_RULES.maxChampions : 2);
   // Champions have no plain form to fall back on: champion slot + wild slot only.
   var champs = flags.filter(function(f) { return f.isChampion; });
-  if (champs.length > maxC) v.push("Too many champions: " + champs.length + " (max " + maxC + " — champion slot + wild slot)");
+  if (champs.length > maxC) v.push("Too many champions: " + champs.length + " (max " + maxC + " — hero slot + wild slot)");
 
   var unowned = flags.filter(function(f) { return !f.owned; });
   if (unowned.length) v.push("Cards not owned: " + unowned.map(function(f) { return f.name; }).join(", "));
@@ -108,15 +108,21 @@ function deckNotes(cards) {
   var maxC = (typeof SLOT_RULES !== "undefined" ? SLOT_RULES.maxChampions : 2);
   var maxH = (typeof SLOT_RULES !== "undefined" ? SLOT_RULES.maxHeroes : 2);
   var maxE = (typeof SLOT_RULES !== "undefined" ? SLOT_RULES.maxEvolutions : 2);
-  var champs = flags.filter(function(f) { return f.isChampion; }).length;
-  var heroes = flags.filter(function(f) { return f.heroCapable; }).length;
+  // Capability without ownership is not a note: an unowned hero-capable
+  // card is already flagged by deckViolations, not triple-counted here.
+  var champs = flags.filter(function(f) { return f.isChampion && f.owned; }).length;
+  var heroes = flags.filter(function(f) { return f.heroCapable && f.owned; }).length;
   var evos   = flags.filter(function(f) { return f.evoUnlocked; }).length;
   if (evos   > maxE) n.push(evos   + " evolution cards — only " + maxE + " can be active (evolution slot + wild slot); the rest play as plain cards");
-  if (heroes > maxH) n.push(heroes + " hero-capable cards — only " + maxH + " can be active (hero slot + wild slot); the rest play as plain cards");
+  // Heroes and champions share the hero slot: one of them takes it, the
+  // other needs the wild slot, a third of either kind plays as a plain card.
+  var maxS = (typeof SLOT_RULES !== "undefined" && SLOT_RULES.maxSpecials) || 3;
+  var heroSlotUsers = heroes + champs;
+  if (heroSlotUsers > 2) n.push(heroSlotUsers + " heroes + champions — only 2 can be active (hero slot + wild slot); the rest play as plain cards");
   var specialSet = {};
   flags.forEach(function(f) { if (f.isChampion || f.evoUnlocked || f.heroCapable) specialSet[f.name] = true; });
   var special = Object.keys(specialSet).length;
-  if (special > 4) n.push(special + " special cards — only 4 fit the special slots (champion, evolution, hero, wild); the rest play as plain cards");
+  if (special > maxS) n.push(special + " special cards — only " + maxS + " fit the special slots (evolution, hero, wild); the rest play as plain cards");
   return n;
 }
 

@@ -38,7 +38,7 @@ var CARD_ROLES = {
   "Giant Snowball":  { role: "spell",         air: true,  splash: false, cycle: 2, tags: ["spell", "control"] },
   "Royal Delivery":  { role: "spell",         air: false, splash: true,  cycle: 3, tags: ["spell", "building-target"] },
   "Arrows":          { role: "spell",         air: true,  splash: true,  cycle: 3, tags: ["spell"] },
-  "Mortar":          { role: "building",      air: false,  splash: false, cycle: 4, tags: ["building", "control", "ground-defense"] },
+  "Mortar":          { role: "win-condition", air: false,  splash: false, cycle: 4, tags: ["win-condition", "siege", "building", "control", "ground-defense"] },
   "Tesla":           { role: "building",      air: true,  splash: false, cycle: 4, tags: ["tank-killer","building", "air-defense"] },
   "Cannon":          { role: "building",      air: false,  splash: false, cycle: 3, tags: ["tank-killer","building", "air-defense"] },
   "Berserker":       { role: "cycle",         air: false,  splash: false, cycle: 2, tags: ["cycle", "push"] },
@@ -69,7 +69,10 @@ var CARD_ROLES = {
   "Bomb Tower":      { role: "building",      air: false,  splash: true,  cycle: 4, tags: ["building", "splash", "air-defense"] },
   "Barbarian Hut":   { role: "building",      air: false,  splash: true,  cycle: 6, tags: ["building", "splash", "air-defense"] },
   "Tombstone":       { role: "building",      air: false,  splash: false, cycle: 3, tags: ["building", "cycle", "control"] },
-  "Furnace":         { role: "building",      air: true,  splash: false, cycle: 4, tags: ["building", "control", "air-defense"] },
+  // Troop since the Aug 2025 rework (was a building): ranged attacker,
+  // hits air and ground, spawns one Fire Spirit at a time. Support role
+  // like Night Witch — it is no longer a defensive building.
+  "Furnace":         { role: "support",       air: true,  splash: false, cycle: 4, tags: ["support", "control", "air-defense"] },
   "Goblin Cage":     { role: "building",      air: false,  splash: false, cycle: 4, tags: ["building", "control"] },
   "Fireball":        { role: "spell",         air: true,  splash: true,  cycle: 4, tags: ["spell"] },
   "Rocket":          { role: "spell",         air: true,  splash: false, cycle: 6, tags: ["spell", "building-target"] },

@@ -544,7 +544,7 @@ function renderCards() {
         '<i class="fa-solid fa-bolt" aria-hidden="true"></i> Evo ' + f.evoLevel + '/' + f.evoMax +
         (f.evoUnlocked ? "" : " · 6 shards") + '</div>';
     }
-    if (f.heroCapable) {
+    if (f.heroCapable && f.owned) {
       bodyExtraHtml += '<div class="ci-badge ci-hero"' +
         ' title="Hero ability costs ' + (f.hero ? f.hero.abilityCost : 0) + ' elixir, single-use. Hero unlock needs 200 shards — the API never reports unlock state, so this only means you own the base card.">' +
         '<i class="fa-solid fa-star" aria-hidden="true"></i> Hero +' + (f.hero ? f.hero.abilityCost : 0) + '⚡</div>';
@@ -686,11 +686,10 @@ function deckCardObjs() {
 // Slot capacity + "only cards that belong in a slot may occupy it".
 function slotViolations() {
   var idx = deckIndex();
-  var counts = { champion: 0, evolution: 0, hero: 0, wild: 0 };
+  var counts = { evolution: 0, hero: 0, wild: 0 };
   var REASON = {
-    champion: "champion cards only",
     evolution: "evolution cards only",
-    hero: "hero-capable cards only",
+    hero: "hero or champion cards only",
     wild: "champion, hero, or evolution cards only",
   };
   var v = [];
@@ -699,9 +698,8 @@ function slotViolations() {
     if (!c) return;
     if (counts[d.slot] === undefined) return;   // normal slot accepts anything
     var f = cardFlags(c);
-    var ok = d.slot === "champion" ? f.isChampion
-      : d.slot === "evolution" ? f.evoCapable
-      : d.slot === "hero" ? f.heroCapable
+    var ok = d.slot === "evolution" ? f.evoCapable
+      : d.slot === "hero" ? (f.heroCapable || f.isChampion)
       : (f.isChampion || f.heroCapable || f.evoCapable);
     if (!ok) { v.push(d.name + " cannot go in the " + d.slot + " slot (" + REASON[d.slot] + ")"); return; }
     counts[d.slot]++;
@@ -714,21 +712,21 @@ function slotViolations() {
 
 function slotFits(f, slot) {
   if (slot === "normal" || !slot) return true;
-  if (slot === "champion")  return f.isChampion;
+  if (slot === "champion")  return f.isChampion;   // legacy shared links only; migrated to hero on load
   if (slot === "evolution") return f.evoCapable;
-  if (slot === "hero")      return f.heroCapable;
+  if (slot === "hero")      return f.heroCapable || f.isChampion;
   return f.isChampion || f.heroCapable || f.evoCapable;   // wild
 }
 
-// The slot a card would take if it were added right now: champion beats
-// evolution beats hero beats wild, skipping anything already occupied.
+// The slot a card would take if it were added right now: evolution beats
+// hero beats wild, skipping anything already occupied.
 function pickSlotFor(name) {
   var f = cardFlags(deckIndex()[name] || {});
   var taken = {};
   currentDeck.forEach(function(d) { if (d.slot && d.slot !== "normal") taken[d.slot] = true; });
-  var order = f.isChampion ? ["champion", "wild"]
-    : f.evoCapable ? ["evolution", "wild"]
-    : f.heroCapable ? ["hero", "wild"] : [];
+  // Champions have no dedicated slot — hero slot first, then wild.
+  var order = (f.isChampion || f.heroCapable) ? ["hero", "wild"]
+    : f.evoCapable ? ["evolution", "wild"] : [];
   for (var i = 0; i < order.length; i++) if (!taken[order[i]]) return order[i];
   return "normal";
 }
@@ -763,12 +761,10 @@ function slotOptions(sel, name) {
     var legal = true;
     if (s !== "normal" && f) {
       legal = s === "wild" ? !!(f.isChampion || f.evoCapable || f.heroCapable)
-        : s === "champion" ? !!f.isChampion
         : s === "evolution" ? !!f.evoCapable
-        : !!f.heroCapable;
+        : !!(f.heroCapable || f.isChampion);   // hero slot takes heroes and champions
       if (s === "evolution" && !f.evoCapable) legal = false;
-      if (s === "hero" && !f.heroCapable) legal = false;
-      if (s === "champion" && !f.isChampion) legal = false;
+      if (s === "hero" && !(f.heroCapable || f.isChampion)) legal = false;
     }
     var suffix = "";
     if (s !== "normal" && taken[s]) suffix = " (taken)";
@@ -876,9 +872,8 @@ deckStatsEl && deckStatsEl.addEventListener("toggle", function(e) {
 function slotSelectLabel(sel) {
   var COPY = {
     normal: "Normal slot — plays as a plain card",
-    champion: "Champion slot — champion ability active",
     evolution: "Evolution slot — evolved form active",
-    hero: "Hero slot — hero ability active",
+    hero: "Hero slot — hero or champion active",
     wild: "Wild slot — accepts a champion, hero or evolution",
   };
   return COPY[sel] || sel;
@@ -888,7 +883,7 @@ function slotSelectLabel(sel) {
 // current so the tab answers "what do I do first?" without a tooltip.
 var DECK_STEPS = [
   { n: 1, label: "Fill the 8 cards",     hint: "Pick from your collection below" },
-  { n: 2, label: "Seat all 4 special slots", hint: "Champion · evolution · hero · wild" },
+  { n: 2, label: "Seat all 3 special slots", hint: "Evolution · hero (or champion) · wild" },
   { n: 3, label: "Score 80 or better",  hint: "The grade is the weight of every check you pass" },
 ];
 
@@ -914,7 +909,7 @@ function renderDeckGuide(cards, specials, an) {
     }).join("") + "</ol>" +
     '<div class="guide-meter">' +
       '<span class="guide-meter-cell"><b>' + cards.length + "</b> / " + DECK_SIZE + " cards</span>" +
-      '<span class="guide-meter-cell"><b>' + specials.length + "</b> / 4 slots active</span>" +
+      '<span class="guide-meter-cell"><b>' + specials.length + "</b> / 3 slots active</span>" +
       '<span class="guide-meter-cell' + (an && cards.length ? " has-grade" : "") + '">' +
         "<b>" + (an && cards.length ? gradeText(an.grade, an.score) : "—") + "</b> deck score</span>" +
     "</div>";
@@ -1002,7 +997,7 @@ function renderDeckBuilder() {
           '<span class="dsum-val">' + gradeText(an.grade, an.score) + "</span>" +
           "<span class=dsum-lbl>deck score out of 100</span></div>" +
         '<div class="dsum-cell' + (specials.length === 4 ? " ok" : "") + '">' +
-          '<span class="dsum-val">' + specials.length + "<small>/4</small></span>" +
+          '<span class="dsum-val">' + specials.length + "<small>/3</small></span>" +
           "<span class=dsum-lbl>special slots active</span></div>" +
       "</div>" +
       '<div class="dsum-tail">' +
@@ -1136,7 +1131,7 @@ function renderDeckStats(cards) {
     metric(s.cheapestWin ? s.cheapestWin.cost + "⚡" : "—", "cheapest win condition",
       s.cheapestWin && s.cheapestWin.cost <= 4 ? "good" : "") +
     metric(s.spellAvg != null ? s.spellAvg.toFixed(1) + "⚡" : "—", "average spell", "") +
-    metric(s.actives.length + "/4", "special slots active", s.actives.length ? "good" : "") +
+    metric(s.actives.length + "/3", "special slots active", s.actives.length ? "good" : "") +
   "</div>";
 
   // The cheapest four are what you can actually cycle in a push.
@@ -1231,7 +1226,7 @@ function renderDeckStats(cards) {
       ? '<div class="ds-free">Free special slots: ' + freeSlots.map(function(sl) {
           return '<span class="chip chip-action" data-slot="' + sl + '" title="Find a card that fits this slot">' + sl + "</span>";
         }).join("") + "</div>"
-      : '<div class="ds-free">All four special slots are active.</div>') +
+      : '<div class="ds-free">All three special slots are active.</div>') +
   "</div>";
 
   deckStatsEl.innerHTML = html;
@@ -1345,7 +1340,11 @@ function readHash() {
         name = again;
       } catch (e) { break; }
     }
-    return { name: name, slot: bits[1] || "normal" };
+    // Slot system migration: the dedicated champion slot was removed in
+    // the Mid-March 2026 rework — champions now activate in the hero slot.
+    var slot = bits[1] || "normal";
+    if (slot === "champion") slot = "hero";
+    return { name: name, slot: slot };
   });
   return {
     tag: params.get("tag"),
@@ -1522,9 +1521,13 @@ function renderSuggestions() {
       if (c && c.owned && cardFlags(c).evoUnlocked) on.push("⚡" + n);
       else off.push("⚡" + n + (c && c.owned ? " (locked — 6 shards)" : " (not owned)"));
     });
+    // Heroes are NEVER listed as activating: hero unlock state is not
+    // readable from the API, so claiming "★Bowler activates" would present
+    // an unowned form as collected. They get their own unknown clause.
+    var heroUnknown = [];
     (a.hero || []).forEach(function(n) {
       var c = idx[n];
-      if (c && c.owned) on.push("★" + n + " (unlock unknown)");
+      if (c && c.owned) heroUnknown.push("★" + n);
       else off.push("★" + n + " (not owned)");
     });
     (a.champion || []).forEach(function(n) {
@@ -1532,9 +1535,10 @@ function renderSuggestions() {
       if (c && c.owned) on.push("♛" + n);
       else off.push("♛" + n + " (not owned)");
     });
-    if (!on.length && !off.length) return "";
+    if (!on.length && !off.length && !heroUnknown.length) return "";
     return '<div class="sugg-active">' +
       (on.length ? "<span>Activates: " + on.join(", ") + "</span>" : "<span>Nothing special activates</span>") +
+      (heroUnknown.length ? ' <span class="sugg-hero">hero-capable (unlock unknown): ' + heroUnknown.join(", ") + "</span>" : "") +
       (off.length ? ' <span class="sugg-off">inactive: ' + off.join(", ") + "</span>" : "") +
     "</div>";
   }
