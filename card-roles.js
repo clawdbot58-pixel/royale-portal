@@ -41,7 +41,7 @@ var CARD_ROLES = {
   "Mortar":          { role: "building",      air: false,  splash: false, cycle: 4, tags: ["building", "control", "ground-defense"] },
   "Tesla":           { role: "building",      air: true,  splash: false, cycle: 4, tags: ["tank-killer","building", "air-defense"] },
   "Cannon":          { role: "building",      air: false,  splash: false, cycle: 3, tags: ["tank-killer","building", "air-defense"] },
-  "Berserker":       { role: "cycle",         air: true,  splash: false, cycle: 2, tags: ["cycle", "push"] },
+  "Berserker":       { role: "cycle",         air: false,  splash: false, cycle: 2, tags: ["cycle", "push"] },
   "Royal Giant":     { role: "win-condition", air: false, splash: false, cycle: 6, tags: ["win-condition", "building-target", "siege"] },
   "Rascals":         { role: "support",       air: true,  splash: false, cycle: 5, tags: ["support", "splash"] },
   "Skeleton Dragons":{ role: "air-attack",    air: true,  splash: false, cycle: 4, tags: ["air-attack", "cycle"] },

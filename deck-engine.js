@@ -194,7 +194,63 @@ function scoreArchetype(arch, index, fav) {
     modes: arch.modes || [arch.meta],
     violations: violations,
     notes: notes,
+    key: arch.key || null,
   };
+}
+
+// Total cost to make a deck ready: every card that is not owned (full
+// unlock, level 0→max) plus every owned card still below max, each to its
+// own max. Returns {cards, gold, missing: [names], upgrades: [{name, cards, gold}]}.
+// `cardsToMaxFn` / `goldToMaxFn` are app.js's helpers, passed in so this
+// stays free of DOM/app dependencies.
+function deckUnlockCost(result, index, cardsToMaxFn, goldToMaxFn) {
+  var totalCards = 0, totalGold = 0;
+  var upgrades = [];
+
+  result.missing.forEach(function(name) {
+    var c = index[name] || {};
+    var cards = cardsToMaxFn(c);
+    var gold = goldToMaxFn(c);
+    totalCards += cards;
+    totalGold += gold;
+  });
+
+  result.owned.forEach(function(name) {
+    var c = index[name];
+    if (!c || c.level >= c.maxLevel) return;
+    var cards = cardsToMaxFn(c);
+    var gold = goldToMaxFn(c);
+    if (!cards && !gold) return;
+    upgrades.push({ name: name, cards: cards, gold: gold });
+    totalCards += cards;
+    totalGold += gold;
+  });
+
+  return {
+    cards: totalCards,
+    gold: totalGold,
+    missing: result.missing.slice(),
+    upgrades: upgrades,
+  };
+}
+
+// For the Invest list: how many (mode-filtered) ranked decks does upgrading
+// each card unlock — i.e. decks where that card is a blocker (a missing
+// card, or an owned card still below max). Decks that are already ready
+// contribute to no card.
+function blockerDeckCounts(ranked, index, cardsToMaxFn) {
+  var counts = {};
+  ranked.forEach(function(a) {
+    a.missing.forEach(function(name) {
+      counts[name] = (counts[name] || 0) + 1;
+    });
+    a.owned.forEach(function(name) {
+      var c = index[name];
+      if (!c || c.level >= c.maxLevel) return;
+      if (cardsToMaxFn(c)) counts[name] = (counts[name] || 0) + 1;
+    });
+  });
+  return counts;
 }
 
 // Rank every archetype against the player.

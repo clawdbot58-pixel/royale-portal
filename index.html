@@ -16,12 +16,16 @@
       <div class="hero-top">
         <h1><i class="fa-solid fa-crown" aria-hidden="true"></i> Royale Portal</h1>
         <form id="lookup-form" class="lookup-form">
-          <input type="text" id="tag-input" placeholder="#92LCJ898U" required />
-          <button type="submit" class="btn-primary">Search</button>
-          <button type="button" id="mine-btn" class="btn-secondary"><i class="fa-solid fa-user" aria-hidden="true"></i> Mine</button>
+          <label class="lookup-label" for="tag-input">Look up a player tag</label>
+          <div class="lookup-row">
+            <input type="text" id="tag-input" placeholder="#92LCJ898U" aria-describedby="ptag" required />
+            <button type="submit" class="btn-primary">Search</button>
+            <button type="button" id="mine-btn" class="btn-secondary"><i class="fa-solid fa-user" aria-hidden="true"></i> Mine</button>
+          </div>
         </form>
       </div>
       <div id="player-bar" class="player-bar hidden">
+        <span class="viewing-label">Viewing</span>
         <span id="pname" class="pname"></span>
         <span id="ptag" class="ptag"></span>
         <span id="pstats" class="pstats"></span>
@@ -44,55 +48,61 @@
     <div id="content" class="hidden">
 
       <div id="tab-bar" class="tab-bar">
-        <button class="tab-btn active" data-tab="collection">Collection</button>
-        <button class="tab-btn" data-tab="deck">Deck Builder</button>
-        <button class="tab-btn" data-tab="suggestions">Deck Suggestions</button>
-        <button class="tab-btn" data-tab="battles">Battles</button>
-        <button class="tab-btn" data-tab="rules">Deck Rules</button>
+        <button class="tab-btn active" data-tab="collection"><span class="tab-long">Collection</span><span class="tab-short">Cards</span></button>
+        <button class="tab-btn" data-tab="deck"><span class="tab-long">Deck Builder</span><span class="tab-short">Deck</span></button>
+        <button class="tab-btn" data-tab="suggestions"><span class="tab-long">Deck Suggestions</span><span class="tab-short">Ideas</span></button>
+        <button class="tab-btn" data-tab="battles"><span class="tab-long">Battles</span><span class="tab-short">Battles</span></button>
+        <button class="tab-btn" data-tab="rules"><span class="tab-long">Deck Rules</span><span class="tab-short">Rules</span></button>
       </div>
 
       <div class="tab-panel active" id="tab-collection">
-        <div class="controls">
+        <div class="controls" id="controls">
           <span class="controls-label"><i class="fa-solid fa-filter" aria-hidden="true"></i> Filter</span>
-          <div class="ctl ctl-rarity">
-            <span class="ctl-cap">Rarity</span>
-            <div class="rarity-ms" id="rarity-ms">
-              <button class="ms-btn" id="rarity-btn" aria-haspopup="true" aria-expanded="false">All rarities <i class="fa-solid fa-chevron-down" aria-hidden="true"></i></button>
-              <div class="ms-dropdown" id="rarity-dropdown">
-                <label class="ms-opt"><input type="checkbox" value="all" checked /> <span>All</span></label>
-                <label class="ms-opt"><input type="checkbox" value="common" /> <span>Common</span></label>
-                <label class="ms-opt"><input type="checkbox" value="rare" /> <span>Rare</span></label>
-                <label class="ms-opt"><input type="checkbox" value="epic" /> <span>Epic</span></label>
-                <label class="ms-opt"><input type="checkbox" value="legendary" /> <span>Legendary</span></label>
-                <label class="ms-opt"><input type="checkbox" value="champion" /> <span>Champion</span></label>
-                <label class="ms-opt"><input type="checkbox" value="tower" /> <span>Tower Troop</span></label>
-              </div>
-            </div>
-          </div>
-          <div class="ctl">
-            <span class="ctl-cap">Status</span>
-            <select id="status-select" aria-label="Filter by collection status">
-              <option value="all">All statuses</option>
-              <option value="owned">Owned</option>
-              <option value="undiscovered">Undiscovered</option>
-              <option value="evo-capable">Evolution-capable</option>
-              <option value="evo-unlocked">Evolutions unlocked</option>
-              <option value="hero-capable">Hero-capable</option>
-            </select>
-          </div>
-          <div class="ctl">
-            <span class="ctl-cap">Sort</span>
-            <select id="sort-select" aria-label="Sort cards">
-              <option value="upgrade">Upgrade priority</option>
-              <option value="level">Level, high to low</option>
-              <option value="rarity-group">Rarity, then level</option>
-            </select>
-          </div>
+          <button type="button" id="filters-toggle" class="filters-toggle" aria-expanded="false" aria-controls="ctl-body">
+            <i class="fa-solid fa-sliders" aria-hidden="true"></i> Filters<span id="filters-summary" class="filters-summary"></span>
+            <i class="fa-solid fa-chevron-down fa-chev" aria-hidden="true"></i>
+          </button>
           <div class="ctl ctl-search">
             <span class="ctl-cap">Search</span>
             <input type="search" id="search-input" placeholder="Card name…" aria-label="Search cards by name" />
           </div>
           <span id="count-label" class="count-label"></span>
+          <div class="ctl-body" id="ctl-body">
+            <div class="ctl ctl-rarity">
+              <span class="ctl-cap">Rarity</span>
+              <div class="rarity-ms" id="rarity-ms">
+                <button class="ms-btn" id="rarity-btn" aria-haspopup="true" aria-expanded="false">All rarities <i class="fa-solid fa-chevron-down" aria-hidden="true"></i></button>
+                <div class="ms-dropdown" id="rarity-dropdown">
+                  <label class="ms-opt"><input type="checkbox" value="all" checked /> <span>All</span></label>
+                  <label class="ms-opt"><input type="checkbox" value="common" /> <span>Common</span></label>
+                  <label class="ms-opt"><input type="checkbox" value="rare" /> <span>Rare</span></label>
+                  <label class="ms-opt"><input type="checkbox" value="epic" /> <span>Epic</span></label>
+                  <label class="ms-opt"><input type="checkbox" value="legendary" /> <span>Legendary</span></label>
+                  <label class="ms-opt"><input type="checkbox" value="champion" /> <span>Champion</span></label>
+                  <label class="ms-opt"><input type="checkbox" value="tower" /> <span>Tower Troop</span></label>
+                </div>
+              </div>
+            </div>
+            <div class="ctl">
+              <span class="ctl-cap">Status</span>
+              <select id="status-select" aria-label="Filter by collection status">
+                <option value="all">All statuses</option>
+                <option value="owned">Owned</option>
+                <option value="undiscovered">Undiscovered</option>
+                <option value="evo-capable">Evolution-capable</option>
+                <option value="evo-unlocked">Evolutions unlocked</option>
+                <option value="hero-capable">Hero-capable</option>
+              </select>
+            </div>
+            <div class="ctl">
+              <span class="ctl-cap">Sort</span>
+              <select id="sort-select" aria-label="Sort cards">
+                <option value="upgrade">Upgrade priority</option>
+                <option value="level">Level, high to low</option>
+                <option value="rarity-group">Rarity, then level</option>
+              </select>
+            </div>
+          </div>
         </div>
         <div id="card-grid" class="card-grid">
           <div class="empty-state">Enter a player tag to see your cards</div>
@@ -113,6 +123,7 @@
           </div>
         </div>
         <div id="deck-slots" class="deck-slots"></div>
+        <section class="deck-verdict" id="deck-verdict" aria-label="Deck verdict"></section>
         <div id="deck-check" class="deck-check"></div>
         <section class="deck-analysis" id="deck-stats" aria-label="Deck statistics"></section>
         <section class="deck-analysis" id="deck-analysis" aria-label="Deck analysis"></section>
@@ -182,21 +193,21 @@
             </tbody>
           </table>
           <h3>Per-deck ceilings</h3>
-          <ul>
-            <li><strong>Max 2 champions</strong> — champion slot + wild slot.</li>
-            <li><strong>Max 2 heroes</strong> — hero slot + wild slot. A hero and a champion can coexist (1 each).</li>
-            <li><strong>Max 2 evolutions</strong> — evolution slot + wild slot.</li>
-            <li>Special cards total <strong>≤ 4</strong>; anything beyond that sits in a normal slot and behaves like the plain card.</li>
-            <li>Every card in the deck must be distinct, and you must own it.</li>
-          </ul>
+          <div class="rule-cards">
+            <div class="rule-card"><b>2 champions</b><span>Champion slot + wild slot.</span></div>
+            <div class="rule-card"><b>2 heroes</b><span>Hero slot + wild slot. A hero and a champion can coexist — 1 each.</span></div>
+            <div class="rule-card"><b>2 evolutions</b><span>Evolution slot + wild slot.</span></div>
+            <div class="rule-card"><b>4 special cards</b><span>Total across all four slots. Anything beyond that sits in a normal slot and behaves like the plain card.</span></div>
+            <div class="rule-card"><b>8 distinct cards</b><span>No duplicates, and you must own every card in the deck.</span></div>
+          </div>
           <h3>Unlocks</h3>
-          <ul>
-            <li><strong>Evolution</strong>: 6 Evolution Shards unlocks a card's evolved form; evolution levels run 1–3. Shards come from Pass Royale, challenges, events, shop, Lucky Chests, Trophy Road, Evolution Boxes.</li>
-            <li><strong>Hero</strong>: 200 Hero Shards unlocks a hero; heroes upgrade with the base card's rarity wild cards. Since 4 Aug 2026 every hero ability is single-use.</li>
-            <li><strong>Evolved form activation</strong>: an evolution card must be played a number of times before its evolved form is released; the cycle repeats after each use.</li>
-            <li><strong>Hero ability</strong>: cast from above the hand, costs elixir on top of the card's own cost, and lasts only while the hero is alive. The deck's average elixir counts only the base cost.</li>
-            <li><strong>Tower troop</strong>: exactly one equipped (Tower Princess, Cannoneer, Dagger Duchess, Royal Chef). It is not part of the 8 cards and levels with its own rarity's wild cards.</li>
-          </ul>
+          <div class="rule-cards">
+            <div class="rule-card"><b>Evolution · 6 shards</b><span>6 Evolution Shards unlock a card's evolved form; evolution levels run 1–3. Shards come from Pass Royale, challenges, events, shop, Lucky Chests, Trophy Road, Evolution Boxes.</span></div>
+            <div class="rule-card"><b>Hero · 200 shards</b><span>200 Hero Shards unlock a hero; heroes upgrade with the base card's rarity wild cards. Since 4 Aug 2026 every hero ability is single-use.</span></div>
+            <div class="rule-card"><b>Evolved form activation</b><span>An evolution card must be played a number of times before its evolved form is released; the cycle repeats after each use.</span></div>
+            <div class="rule-card"><b>Hero ability</b><span>Cast from above the hand, costs elixir on top of the card's own cost, and lasts only while the hero is alive. The deck's average elixir counts only the base cost.</span></div>
+            <div class="rule-card rule-card-wide"><b>Tower troop</b><span>Exactly one equipped — Tower Princess, Cannoneer, Dagger Duchess or Royal Chef. It is not part of the 8 cards and levels with its own rarity's wild cards.</span></div>
+          </div>
           <h3>Card roles used for suggestions</h3>
           <p>Every card is classified as win-condition, support, tank, swarm, air-defense, building, spell, cycle, splash, control, air-swarms, tank-killer or utility, with tags for air/ground attack, splash, targeting, cycle cost. A legal ladder deck needs a win path, at least one spell, and two air answers; cycle decks keep average elixir under 3.5.</p>
           <h3>How a deck is scored</h3>
