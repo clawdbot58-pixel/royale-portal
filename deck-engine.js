@@ -151,9 +151,18 @@ function scoreArchetype(arch, index, fav) {
   var violations = deckViolations(deckCards, arch.tower);
   var notes = deckNotes(deckCards);
 
+  // Level-aware tiering: steps to max, which of them are affordable now, and
+  // the resulting ready/almost/work bucket.
+  var gap = deckUpgradeGap({ owned: owned }, index);
+  var state = suggestionTier({ missing: missing, violations: violations }, gap);
+
   var score = 0;
   score += owned.length * 3;
-  score += avgLevel * 2;
+  // Effective level: an upgrade the player can already pay for counts as done
+  // ("if deck good, and one off, and can upgrade, will upgrade"), so a deck 2
+  // affordable steps from maxed ranks equal to one that is already maxed.
+  var effAvgLevel = gap.effAvgLevel;
+  score += effAvgLevel * 2;
   score += evoUnlocked * 6;
   score += heroCapable * 4;
   score += champs * 3;
@@ -187,6 +196,7 @@ function scoreArchetype(arch, index, fav) {
     owned: owned,
     missing: missing,
     avgLevel: Math.round(avgLevel * 10) / 10,
+    effAvgLevel: Math.round(effAvgLevel * 10) / 10,
     evoUnlocked: evoUnlocked,
     heroCapable: heroCapable,
     champions: champs,
@@ -200,6 +210,13 @@ function scoreArchetype(arch, index, fav) {
     modes: arch.modes || [arch.meta],
     violations: violations,
     notes: notes,
+    // Level gap to a fully maxed deck, and the tier bucket it implies.
+    upgradeSteps: gap.steps,
+    upgradesAffordable: gap.affordable,
+    upgradesBlocked: gap.blocked,
+    upgradeGaps: gap.gaps,
+    gapText: describeUpgradeGap(gap),
+    tierState: state,
     key: arch.key || null,
     // Slot assignments travel with the result so the UI can show which
     // special forms would actually activate for this player.
@@ -207,6 +224,128 @@ function scoreArchetype(arch, index, fav) {
     hero: arch.hero || [],
     champion: arch.champion || [],
   };
+}
+
+// ── Upgrade gap analysis ────────────────────────────────────────────────
+// One "upgrade step" is one level of one owned card below its max.
+//
+// Tier rules (the user's spec):
+//   ready  — fully maxed, OR ≤2 steps away AND every one of those steps is
+//            affordable right now (the player's held `count` covers the cards
+//            needed for the next level). Gold is not gating, so goldForNext is
+//            carried as information only.
+//   almost — ≤2 steps away with at least one step not affordable yet, or
+//            3–6 steps away regardless of affordability.
+//   work   — 7+ steps away, or any card not owned, or any rule violation.
+
+// Cards/gold for the next level of one merged card. Mirrors app.js's
+// cardsForNext()/goldForNext() but is self-contained (same card-data.js
+// arrays) so deck-engine stays runnable under node for tests. Returns
+// {cards, gold} with null meaning "no cost data / already maxed".
+function nextUpgradeCost(card) {
+  var rarity = (card && card.rarity || "").toLowerCase();
+  var arr = null;
+  if (typeof CARDS_COMMON !== "undefined") {
+    if (rarity === "common") arr = CARDS_COMMON;
+    else if (rarity === "rare") arr = CARDS_RARE;
+    else if (rarity === "epic") arr = CARDS_EPIC;
+    else if (rarity === "legendary") arr = CARDS_LEGENDARY;
+    else if (rarity === "champion") arr = CARDS_CHAMPION;
+  }
+  var level = (card && card.level) || 0;
+  var max = (card && card.maxLevel) || 0;
+  var target = level + 1;
+  if (level >= max) return { cards: null, gold: null };
+  var cards = (arr && target < arr.length) ? (arr[target] || 0) : null;
+  var gold = null;
+  if (typeof GOLD_PER_LEVEL !== "undefined" && target < GOLD_PER_LEVEL.length) {
+    gold = GOLD_PER_LEVEL[target] || null;
+  }
+  return { cards: cards, gold: gold };
+}
+
+// Is the next level of this card already paid for? A missing `count` (the
+// stub collections in tests, or a card the API reports without one) is
+// treated as unknown-but-possible, never as unaffordable — a deck is never
+// dropped because of absent data.
+function upgradeAffordable(card, cost) {
+  if (cost.cards == null) return true;
+  if (!card || typeof card.count !== "number" || isNaN(card.count)) return true;
+  return card.count >= cost.cards;
+}
+
+// The concrete level gap of one scored archetype: every owned card below
+// its max, with its single next step priced and flagged affordable/blocked.
+// Returns {steps, affordable, blocked, maxed, effAvgLevel, gaps}.
+// `effAvgLevel` is the average level once every affordable step is applied
+// (one step per card) — that is the number the ranking uses.
+function deckUpgradeGap(result, index) {
+  var idx = index || {};
+  var gaps = [], steps = 0, affordable = 0, blocked = 0, effSum = 0, counted = 0;
+
+  (result.owned || []).forEach(function(name) {
+    var c = idx[name] || {};
+    var level = c.level || 0;
+    var max = typeof c.maxLevel === "number" ? c.maxLevel : level;
+    counted++;
+    if (level >= max) { effSum += max; return; }
+    var cost = nextUpgradeCost(c);
+    var ok = upgradeAffordable(c, cost);
+    steps++;
+    if (ok) affordable++; else blocked++;
+    effSum += ok ? level + 1 : level;
+    gaps.push({
+      name: name,
+      from: level,
+      to: level + 1,
+      cards: cost.cards,
+      gold: cost.gold,
+      have: (c && typeof c.count === "number") ? c.count : null,
+      affordable: ok,
+    });
+  });
+
+  // Biggest gap first reads best; affordable steps lead, so "do these now" is
+  // visible at a glance.
+  gaps.sort(function(a, b) {
+    if (a.affordable !== b.affordable) return a.affordable ? -1 : 1;
+    return (b.to - b.from) - (a.to - a.from);
+  });
+
+  return {
+    steps: steps,
+    affordable: affordable,
+    blocked: blocked,
+    maxed: steps === 0,
+    effAvgLevel: counted ? effSum / counted : 0,
+    gaps: gaps,
+  };
+}
+
+// "2 upgrades away — Cannon Cart 10→11, Zappies 13→14" with each step
+// marked: bare means affordable now, "(needs 20 cards, you hold 6)" does not.
+function describeUpgradeGap(gap) {
+  if (!gap || !gap.steps) return "";
+  var head = gap.steps + " upgrade" + (gap.steps === 1 ? "" : "s") + " away";
+  if (gap.maxed) return "";
+  var body = gap.gaps.map(function(g) {
+    if (g.affordable) return g.name + " " + g.from + "→" + g.to;
+    var need = g.cards == null ? "?" : g.cards;
+    var have = g.have == null ? "?" : g.have;
+    return g.name + " " + g.from + "→" + g.to + " (needs " + need + " cards, you hold " + have + ")";
+  });
+  return head + " — " + body.join(", ");
+}
+
+// ready / almost / work. Unowned cards and rule violations always win.
+function suggestionTier(result, gap) {
+  if (result.missing && result.missing.length) return "work";
+  if (result.violations && result.violations.length) return "work";
+  var g = gap || { steps: 0, blocked: 0 };
+  if (g.steps === 0) return "ready";
+  if (g.steps <= 2 && g.blocked === 0) return "ready";
+  if (g.steps <= 6) return "almost";
+  return "work";
 }
 
 // Total cost to make a deck ready: every card that is not owned (full
@@ -248,10 +387,12 @@ function deckUnlockCost(result, index, cardsToMaxFn, goldToMaxFn) {
 // For the Invest list: how many (mode-filtered) ranked decks does upgrading
 // each card unlock — i.e. decks where that card is a blocker (a missing
 // card, or an owned card still below max). Decks that are already ready
-// contribute to no card.
+// contribute to no card: a deck whose only remaining steps are affordable is
+// not held back by anything the player could buy.
 function blockerDeckCounts(ranked, index, cardsToMaxFn) {
   var counts = {};
   ranked.forEach(function(a) {
+    if (a.tierState === "ready") return;
     a.missing.forEach(function(name) {
       counts[name] = (counts[name] || 0) + 1;
     });
@@ -264,11 +405,19 @@ function blockerDeckCounts(ranked, index, cardsToMaxFn) {
   return counts;
 }
 
-// Rank every archetype against the player.
+// Rank every archetype against the player. Ties break on how ready the deck
+// actually is (ready > almost > work) so an equally-scoring deck that only
+// needs affordable upgrades floats above one with a real grind ahead.
 function rankArchetypes(index, fav) {
   if (typeof META_DECKS === "undefined") return [];
+  var order = { ready: 0, almost: 1, work: 2 };
   return META_DECKS.map(function(a) { return scoreArchetype(a, index, fav); })
-                   .sort(function(a, b) { return b.score - a.score; });
+                   .sort(function(a, b) {
+                     if (b.score !== a.score) return b.score - a.score;
+                     var d = order[a.tierState] - order[b.tierState];
+                     if (d) return d;
+                     return a.upgradeSteps - b.upgradeSteps;
+                   });
 }
 
 // Cards that need upgrading to make a deck playable: missing cards and cards

@@ -1488,30 +1488,30 @@ function renderSuggestions() {
     return;
   }
 
-  // "Almost there" cost gate: cheap enough to level in a short grind.
-  var SMALL_GOLD = 200000, SMALL_CARDS = 400;
+  // Total cards/gold to bring every card to max (unlocks included) — used for
+  // the grind figures on non-ready decks.
   var costMemo = {};
   function costFor(a) {
     if (!costMemo[a.name]) costMemo[a.name] = deckUnlockCost(a, idx, cardsToMax, goldToMax);
     return costMemo[a.name];
   }
-  // Ready now: every card owned AND the deck is legal as-is (fieldable today).
-  function isReady(a) { return a.missing.length === 0 && a.violations.length === 0; }
-  // Almost there: 1–2 cards missing, OR a small upgrade cost to field it.
-  function isAlmost(a) {
-    if (a.missing.length <= 2) return true;
-    var c = costFor(a);
-    return c.cards <= SMALL_CARDS && c.gold <= SMALL_GOLD;
-  }
+
+  // Level-aware tiers. A deck is "Ready now" only when it is fully maxed or
+  // at most 2 level-upgrades away AND every one of those upgrades is already
+  // affordable (held `count` covers cardsForNext). Gold is not gating, so the
+  // gold figures below are information only.
+  function isReady(a)  { return a.tierState === "ready"; }
+  function isAlmost(a) { return a.tierState === "almost"; }
 
   var ready  = ranked.filter(isReady);
-  var almost = ranked.filter(function(a) { return !isReady(a) && isAlmost(a); })
-                     .sort(function(a, b) {
-                       var ca = costFor(a), cb = costFor(b);
-                       if (ca.gold !== cb.gold) return ca.gold - cb.gold;
-                       return ca.cards - cb.cards;
-                     });
-  var rest   = ranked.filter(function(a) { return !isReady(a) && !isAlmost(a); });
+  var almost = ranked.filter(isAlmost).sort(function(a, b) {
+    if (a.upgradesBlocked !== b.upgradesBlocked) return a.upgradesBlocked - b.upgradesBlocked;
+    if (a.upgradeSteps !== b.upgradeSteps) return a.upgradeSteps - b.upgradeSteps;
+    var ca = costFor(a), cb = costFor(b);
+    if (ca.gold !== cb.gold) return ca.gold - cb.gold;
+    return ca.cards - cb.cards;
+  });
+  var rest   = ranked.filter(function(a) { return a.tierState === "work"; });
 
   // Sections (capped), then back-fill the top-10 so the ranked list stays
   // fully represented no matter how the caps land.
@@ -1579,6 +1579,18 @@ function renderSuggestions() {
       (off.length ? ' <span class="sugg-off">inactive: ' + off.join(", ") + "</span>" : "") +
     "</div>";
   }
+  // The concrete level gap of any deck that is not fully maxed, with each step
+  // marked affordable now or not. Rendered for ready decks too — a deck that
+  // is Ready only because of two affordable upgrades must still say so.
+  function gapLine(a) {
+    if (!a.upgradeSteps) return "";
+    var blocked = a.upgradesBlocked;
+    var tail = blocked
+      ? " · " + blocked + " blocked until you hold the cards"
+      : " · all affordable now";
+    return '<div class="sugg-note" style="margin-top:0.55rem"><b style="color:var(--warning)">Upgrades</b> — ' +
+      a.gapText + tail + "</div>";
+  }
   // Unlock cost line for non-ready decks: what's missing + the grind to max.
   function unlockLine(a) {
     if (isReady(a)) return "";
@@ -1601,7 +1613,7 @@ function renderSuggestions() {
       '<div class="sugg-tags">' + a.tags.map(function(t) { return '<span class="tag">' + t + "</span>"; }).join("") + "</div>" +
       '<div class="sugg-stats">' +
         stat("owned", a.owned.length + "/8") +
-        stat("avg Lv", a.avgLevel) +
+        stat("avg Lv", a.avgLevel + (a.effAvgLevel > a.avgLevel ? " → " + a.effAvgLevel : "")) +
         stat("tower", a.tower) +
         (a.evoUnlocked ? stat("evos", a.evoUnlocked) : "") +
         (a.heroCapable ? stat("heroes", a.heroCapable) : "") +
@@ -1614,6 +1626,7 @@ function renderSuggestions() {
       }).join("") + "</div>" +
       keyFlag(a) +
       activatesLine(a, idx) +
+      gapLine(a) +
       unlockLine(a) +
       (a.win ? '<div class="sugg-win">' + a.win + "</div>" : "") +
       (plan.length ? '<div class="sugg-plan"><h4>To make it work</h4><ul>' + plan.map(function(p) {
@@ -1632,9 +1645,9 @@ function renderSuggestions() {
   }
 
   suggestionsEl.innerHTML =
-    section("Ready now", "all 8 owned · legal as-is", readySec) +
-    section("Almost there", "1–2 missing or cheap to level · sorted by cost", almostSec) +
-    section("Needs work", "3+ missing or a heavy grind", restSec) +
+    section("Ready now", "maxed, or ≤2 upgrades away and all affordable now", readySec) +
+    section("Almost there", "≤2 upgrades with some blocked, or 3–6 away · sorted by blockers", almostSec) +
+    section("Needs work", "7+ upgrades away, a card unowned, or a rule violation", restSec) +
     (ranked.some(function(a) { return a.metaWr != null; })
       ? '<p class="sugg-src">Meta win rates and usage: deckai.app popular decks — 7-day sample, ranked + Path of Legend playlists, fetched 7 Oct 2026. Everything else (scores, plans, upgrades) is computed from your own collection.</p>'
       : "");
