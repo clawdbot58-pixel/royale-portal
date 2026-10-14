@@ -30,7 +30,26 @@ function roleEntry(name) {
   return CARD_ROLES[name] || null;
 }
 
+// ── Mirror: the one wildcard card ─────────────────────────────────────
+// Mirror is an Epic spell whose in-game cost is "the cost of the previous
+// card played, +1" — shown as "?" — and the developer API therefore returns
+// NO elixirCost for it. The 4-elixir fallback above would make a Mirror deck
+// look like it carries a Fireball-class answer, which is exactly the lie the
+// big-spell check must not tell: Mirror can only duplicate the last card
+// played, it is never in the starting hand, and it answers nothing.
+// Clash Royale counts Mirror as a fixed 1.5-elixir card when working out a
+// deck's average elixir (Liquipedia / Clash Royale Wiki), so 1.5 is used for
+// every elixir and cycle calculation, and it is excluded from small- and
+// big-spell coverage. It still counts as "a spell" so a deck that runs on
+// spells is never mistaken for a deck without one.
+var MIRROR_ELIXIR = 1.5;
+
+function isWildcardSpell(name) {
+  return name === "Mirror";
+}
+
 function elixirOf(c) {
+  if (isWildcardSpell(c.name)) return MIRROR_ELIXIR;
   return typeof c.elixirCost === "number" ? c.elixirCost : 4;
 }
 
@@ -57,7 +76,11 @@ function deckCoverage(cards) {
     if (e <= 2) cov.cheap.push(c);
     if (r.role === "spell") {
       cov.spells.push(c);
-      if (e <= 3) cov.small.push(c); else cov.big.push(c);
+      // Mirror is a spell but never a reliable answer: it duplicates whatever
+      // was played last, so it counts for neither the small nor the big slot.
+      if (!isWildcardSpell(c.name)) {
+        if (e <= 3) cov.small.push(c); else cov.big.push(c);
+      }
       // Spells stay out of air/splash coverage: Zap answers Minions but
       // nothing stops a Balloon, so a spell-only "air defence" is a lie
       // the grade must not tell. Durable answers only (see scoreArchetype).
@@ -321,6 +344,261 @@ function deckStrategy(cards) {
     " and defend the counter-push" + backupTxt();
   if (big.length) f += "; " + big[0].name + " deletes their commit";
   return f + ".";
+}
+
+// ---- Archetype classification -----------------------------------------
+// deckStrategy() says what to DO; this says what the deck IS. The rule is
+// composition only — win-condition tags, the 4-card rotation, average elixir,
+// and the building / tank-killer / spell counts each family needs — so it
+// works on any 0–8 card pile, never on a META_DECKS lookup.
+var ARCHETYPE_LABELS = {
+  "spell-cycle": "Spell-cycle deck",
+  "siege":        "Siege deck",
+  "bait":         "Bait deck",
+  "beatdown":     "Beatdown deck",
+  "control":      "Control deck",
+  "bridge-spam":  "Bridge-spam deck",
+  "cycle":        "Cycle deck",
+  "misc":         "Unclassified pile",
+};
+
+function deckArchetype(cards) {
+  cards = cards || [];
+  if (!cards.length) {
+    return {
+      family: "misc",
+      label: ARCHETYPE_LABELS.misc,
+      why: "No cards yet — pick 8 and this will name the archetype.",
+      build: [],
+    };
+  }
+
+  var cov = deckCoverage(cards);
+  var avg = cov.elixir / cov.count;
+  var cyc = cycleCost(cards);
+  var cost = elixirOf;
+  var desc = function(a, b) { return cost(b) - cost(a); };
+  var asc = function(a, b) { return cost(a) - cost(b); };
+  function role(c) { return roleEntry(c.name) || {}; }
+  function tagged(c, t) { return hasTag(role(c), t); }
+
+  // Composition buckets every step below draws from.
+  var wins = cov.win.slice();
+  // A siege STRUCTURE (Mortar, X-Bow) makes the deck siege outright. A
+  // siege-tagged chipper (Magic Archer, Three Musketeers, Royal Giant) only
+  // does when it is the deck's sole win condition and the deck is slow
+  // enough to play a placement game — otherwise it is one card in a cycle
+  // or beatdown deck. ("xbow" is a chipper tag shared with Magic Archer, so
+  // it cannot stand in for "is a siege building" here.)
+  var siegeStruct = wins.filter(function(c) {
+    return tagged(c, "siege") && (hasTag(role(c), "building") || c.name === "X-Bow");
+  });
+  var siegeUnit = wins.filter(function(c) {
+    return tagged(c, "siege") && !hasTag(role(c), "building") && c.name !== "X-Bow";
+  });
+  var siegeUnitDeck = siegeUnit.length && wins.length === 1 &&
+    avg >= 3.5 && (cyc == null || cyc >= 10);
+  var baitWins = wins.filter(function(c) { return tagged(c, "log-bait"); });
+  var btWins = wins.filter(function(c) { return tagged(c, "building-target") && cost(c) <= 4; });
+  var heavyWins = wins.filter(function(c) { return cost(c) >= 5; });
+  // A win condition that is walked in behind support rather than sent alone.
+  var walkWins = wins.filter(function(c) {
+    return cost(c) >= 4 && !tagged(c, "building-target");
+  });
+  // Cards that exist to walk in front of / behind the win condition.
+  var support = cards.filter(function(c) {
+    var r = role(c);
+    if (r.role === "spell" || r.role === "win-condition") return false;
+    return r.role === "tank" || r.role === "support" || r.role === "push" ||
+      ((r.role === "air-defense" || r.role === "splash") && cost(c) >= 3);
+  }).sort(desc);
+  // A win condition cheap and unsieged enough to go alone = the deck cycles to it.
+  var fastWins = wins.filter(function(c) {
+    return cost(c) <= 4 && !tagged(c, "siege") && !tagged(c, "beatdown");
+  });
+  var baits = cards.filter(function(c) { return role(c).role !== "spell" && hasTag(role(c), "log-bait"); });
+  var buildings = cov.building;
+  var tankkill = cov.tankkill.slice().sort(desc);
+  var air = cov.air.slice().sort(desc);
+  var splash = cov.splash.slice().sort(desc);
+  var swarm = cov.swarm.slice().sort(asc);
+  var bigs = cov.big.slice().sort(desc);
+  var smalls = cov.small.slice().sort(asc);
+  var main = null;
+
+  function ref(list, max) {
+    var l = (list || []).slice(0, max || 1);
+    if (!l.length) return "";
+    if (l.length === 1) return l[0].name;
+    return names(l.slice(0, -1)) + " or " + l[l.length - 1].name;
+  }
+
+  // ── Which family ────────────────────────────────────────────────────
+  // Ordered most-specific first: each test is a structure, and `cycle` is
+  // the cheap-deck fallback rather than a trump card.
+  var family;
+  if (!wins.length && cov.spells.length >= 2) {
+    family = "spell-cycle";
+  } else if (siegeStruct.length) {
+    family = "siege"; main = siegeStruct.slice().sort(desc)[0];
+  } else if (baitWins.length && baits.length >= 2) {
+    family = "bait"; main = baitWins.slice().sort(desc)[0];
+} else if (siegeUnitDeck) {
+    family = "siege"; main = siegeUnit.slice().sort(desc)[0];
+  } else if ((heavyWins.length || walkWins.length) && support.length) {
+    family = "beatdown";
+    main = (heavyWins.concat(walkWins).slice().sort(desc))[0];
+  } else if (buildings.length && tankkill.length && cov.spells.length && (cyc == null || cyc > 9)) {
+    family = "control"; main = wins.slice().sort(desc)[0] || null;
+  } else if ((btWins.length >= 2 || (wins.length >= 2 && btWins.length >= 1)) && avg <= 4.2) {
+    family = "bridge-spam"; main = btWins.slice().sort(desc)[0];
+  } else if (cyc != null && cyc <= 9 && fastWins.length) {
+    family = "cycle"; main = fastWins.slice().sort(asc)[0];
+  } else {
+    family = "misc"; main = (wins.slice().sort(desc)[0] || null);
+  }
+
+  // ── Why ─────────────────────────────────────────────────────────────
+  var why;
+  switch (family) {
+    case "spell-cycle":
+      why = "Nothing takes a tower, so " + cov.spells.length + " spells (" +
+        ref(cov.spells.slice().sort(desc), 3) + ") carry the whole game.";
+      break;
+    case "siege":
+      why = main.name + (hasTag(role(main), "building") ? " is a siege building — the deck sets it up and lives behind it."
+        : " chips from behind their defence, so the deck plays a slow placement game.");
+      break;
+    case "bait":
+      why = baits.length + " log-bait cards (" + ref(baits, 3) + ") pull The Log before " +
+        main.name + " goes to the lane it missed.";
+      break;
+    case "beatdown":
+      why = avg.toFixed(1) + "⚡ average built around a " + cost(main) + "⚡ win condition" +
+        (support.length ? " with " + ref(support, 2) + " to walk it in" : "") +
+        " — a slow push that wants elixir banked.";
+      break;
+    case "control":
+      why = ref(buildings, 1) + " holds the lane, " + ref(tankkill, 1) +
+        " shreds what comes at it, and spells finish the rest.";
+      break;
+    case "bridge-spam":
+      why = btWins.length > 1
+        ? btWins.length + " win conditions all target buildings at moderate cost (" + ref(btWins, 3) + ")."
+        : wins.length + " win conditions with " + ref(btWins, 1) +
+          " going straight for their building — two threats, one lane.";
+      break;
+    case "cycle":
+      why = (cyc == null ? "A cheap core" : cyc + "⚡ for the cheapest 4 cards") +
+        " — you get back to the win condition before they do." +
+        (cov.cheap.length ? " " + cov.cheap.length + " cards at 2⚡ or less." : "");
+      break;
+    default:
+      why = (wins.length ? ref(wins, 2) + " takes towers" : "Nothing clearly takes towers") +
+        " at " + avg.toFixed(1) + "⚡ average" +
+        (cyc == null ? "" : " and a " + cyc + "⚡ 4-card rotation") +
+        " — no single archetype structure, so play it card for card.";
+  }
+
+  // ── Build: 3–5 concrete steps, only ever naming cards in the deck ─────
+  var lead = main ? main.name : null;
+  var big = bigs[0] || null, small = smalls[0] || null;
+  var tk = tankkill[0] || null, ar = air[0] || null, sp = splash[0] || null;
+  var sw = swarm[0] || null, bld = buildings[0] || null;
+  var build = [];
+
+  switch (family) {
+    case "spell-cycle":
+      build.push("Win condition: none — every tower comes from a spell you cycle to.");
+      build.push("Lead with " + (small || big).name + " when they spend nothing, and finish with " +
+        (big || small).name + " when they answer it.");
+      if (tk) build.push("Defend tanks with " + tk.name + " so you keep the elixir to cycle.");
+      else if (sw) build.push("Defend with " + sw.name + " so you keep the elixir to cycle.");
+      build.push(tk ? "You lose to heavy tanks that " + tk.name + " cannot hold — trade elixir early."
+        : "You lose to heavy tanks: there is no tank killer, so every tank is a trade.");
+      break;
+
+    case "siege":
+      build.push(lead + " is the win condition — " +
+        (hasTag(role(main), "building")
+          ? "set it up far behind your own side and chip."
+          : "keep it in the back lane, out of their reach, and chip while they build a defence."));
+      if (tk) build.push("Defend with " + tk.name + (ar ? " and answer air with " + ar.name : "") +
+        "; they will send swarms and tanks at it.");
+      else build.push("Defend with " + ((ar || sp || sw) ? (ar || sp || sw).name : "your cheapest card") +
+        "; they will send swarms and tanks at it.");
+      if (big) build.push(big.name + " cleans up a committed push instead of defending card for card.");
+      else if (small) build.push("Keep " + small.name + " to cycle between placements.");
+      build.push("You lose to heavy hitters that reach your tower before the chips land — never push up first.");
+      break;
+
+    case "bait":
+      build.push("Bait The Log with " + ref(baits, 1) + (baits.length > 1 ? " and " + baits[1].name + " behind it" : "") + ".");
+      build.push("Then send " + lead + " to the lane their Log just missed.");
+      if (small) build.push("Keep " + small.name + " to finish the tower once the defence is spent.");
+      if (big && big.name !== small && big.name !== lead)
+        build.push(big.name + " is the answer when they hold it with a tank instead.");
+      build.push("You lose to decks with no spell at all — bait nothing, just push " + lead + " behind support.");
+      break;
+
+    case "beatdown":
+      build.push("Bank elixir and build " + lead + " at the back from a fresh bar.");
+      var behind = support.filter(function(c) { return c.name !== lead; });
+      if (behind.length) build.push("Put " + ref(behind, 2) +
+        (behind.length > 1 ? " behind it" : " behind it") + " so their tank engages your support first.");
+      if (sp && sp.name !== lead) build.push(sp.name + " answers their swarms while the push walks in.");
+      if (big) build.push(big.name + " deletes their committed answer once it lands behind the tower.");
+      build.push("You lose to fast cycle decks that outpace the push — the push only has to start once.");
+      break;
+
+    case "control":
+      build.push("Park " + bld.name + " at the bridge and let them overcommit onto it.");
+      if (tk) build.push("Answer their tank with " + tk.name + (ar ? " and their air with " + ar.name : "") + ".");
+      if (big) build.push(big.name + " burns the whole push rather than defending card for card.");
+      else if (small) build.push("Keep " + small.name + " to cycle between defences.");
+      build.push(lead ? "Win condition: " + lead + " once the tower is softened by the spells."
+        : "Win condition: none — add a tower-taker, the spells only chip.");
+      break;
+
+    case "bridge-spam":
+      build.push("Win conditions " + ref(btWins.length > 1 ? btWins : wins, 3) +
+        " — each one goes straight for what they put behind their defence.");
+      build.push(btWins.length > 1
+        ? "Commit two of them in the same lane the moment they place a tank."
+        : "Commit it the moment they place a tank, with a second threat queued behind it.");
+      if (tk) build.push(tk.name + " is the answer to that tank" + (ar ? " and " + ar.name + " to their air" : "") + ".");
+      if (big) build.push(big.name + " clears the lane on their counter-push.");
+      else if (small) build.push("Keep " + small.name + " for the tower close.");
+      build.push("You lose to heavy spells — at " + avg.toFixed(1) + "⚡ you cannot afford to trade down.");
+      break;
+
+    case "cycle":
+      build.push("Win condition: " + (lead || "whatever you can reach first") + " — cycle back to it before they recover.");
+      if (sw) build.push("Defend with " + sw.name + (tk ? " and " + tk.name + " for the tanks" : "") + "; hold the cheap cards for the counter.");
+      else if (tk) build.push("Defend with " + tk.name + " and keep the cheap cards for the counter.");
+      build.push((cyc == null ? "Your 4-card rotation is cheap" : "Your 4-card rotation is " + cyc + "⚡") +
+        " — rotate in pairs at the bridge and never let them set elixir.");
+      if (small) build.push("Close the tower with " + small.name + " instead of defending with it.");
+      build.push("You lose to decks with a cheap hard answer to " + (lead || "your threat") + " — vary your timing.");
+      break;
+
+    default:
+      build.push(lead ? "Win condition: " + lead + " — it is the only card that takes a tower."
+        : "Win condition: none — nothing in this deck takes a tower.");
+      if (tk) build.push("Answer tanks with " + tk.name + (ar ? " and air with " + ar.name : "") + ".");
+      if (big) build.push(big.name + " is the biggest swing you have; hold it for their answer.");
+      else if (small) build.push("Keep " + small.name + " to finish what your support starts.");
+      if (sp) build.push(sp.name + " handles the swarms that otherwise eat your push.");
+      build.push("Play it card for card and fix the gaps the checklist shows before optimising anything.");
+      break;
+  }
+
+  return {
+    family: family,
+    label: ARCHETYPE_LABELS[family] || ARCHETYPE_LABELS.misc,
+    why: why,
+    build: build,
+  };
 }
 
 // Offence / defence split, used for the atk-def balance metric.
@@ -588,8 +866,10 @@ function autofillDeck(pool) {
     return a.name.localeCompare(b.name);
   });
   playabilityFix(function(r) { return r.role === "spell"; }, function(a, b) {
-    var sa = elixirOf(a) <= 3 ? 0 : 1;
-    var sb = elixirOf(b) <= 3 ? 0 : 1;
+    // Rank 2 = Mirror: it is a real spell but answers nothing, so only reach
+    // for it when the pool holds no other spell at all.
+    var sa = isWildcardSpell(a.name) ? 2 : (elixirOf(a) <= 3 ? 0 : 1);
+    var sb = isWildcardSpell(b.name) ? 2 : (elixirOf(b) <= 3 ? 0 : 1);
     if (sa !== sb) return sa - sb;                    // small = cyclable
     var ea = elixirOf(a), eb = elixirOf(b);
     if (ea !== eb) return ea - eb;
@@ -604,22 +884,86 @@ function autofillDeck(pool) {
 
 // ---- Swap suggestions -------------------------------------------------
 // For every coverage gap: which owned card would close it, and which deck
-// card is the least loss to make room. A swap is only suggested when the
-// post-swap deck (8 cards) actually closes the gap AND keeps every check
-// that already passes.
+// card is the least loss to make room.
+//
+// The hard version of this problem is real. A deck can fail a check for
+// which NO single swap closes the gap without giving up something else — an
+// "anti-air 2+" gap that only has one air answer and a deck whose every
+// other card is load-bearing. Silence there is the worst possible answer:
+// the user sees an unfixable gap and no help at all. So a suggestion is
+// offered whenever the pool holds a card that moves the check in the right
+// direction, and every suggestion says honestly what it costs: `trade` is
+// "keeps everything" when the swap breaks no passing check, otherwise
+// "costs <checks the swap would break>". `closes` says whether the check
+// then passes outright.
+//
+// The UI renders every suggestion, so the list is capped and de-duplicated:
+// at most VICTIMS_PER_CHECK distinct victims per check and TOTAL at most —
+// eleven variants of "X for Bomber" is noise, not help.
+var VICTIMS_PER_CHECK = 2;
+var TOTAL_SWAP_SUGGESTIONS = 6;
+
+// "costs splash damage, anti-air" — the labels come straight from
+// DECK_CHECKS so the trade text can never drift from the check it names.
+function tradeLabel(brokenIds) {
+  if (!brokenIds.length) return "keeps everything";
+  return "costs " + brokenIds.map(function(id) {
+    var def = DECK_CHECKS.filter(function(d) { return d.id === id; })[0];
+    return def ? def.label.toLowerCase() : id;
+  }).join(", ");
+}
+
+// Which passing checks a swap to `victimName` for `cand` would break.
+function swapBreaks(cards, okMap, chkId, victimName, cand) {
+  var after = cards.filter(function(c) { return c.name !== victimName; }).concat([cand]);
+  var afterOk = {};
+  deckChecks(after).forEach(function(a) { afterOk[a.id] = a.ok; });
+  var broken = DECK_CHECKS.filter(function(d) {
+    return okMap[d.id] && d.id !== chkId && !afterOk[d.id];
+  }).map(function(d) { return d.id; });
+  return { broken: broken, closes: !!afterOk[chkId] };
+}
+
+// Does this single card count toward the check at all? A card that closes the
+// gap outright always passes this; a card that only moves it toward passing
+// (the second anti-air answer) passes too. `avg` / `cycle` are whole-deck
+// metrics with no single-card answer and are never suggested.
+function contributesTo(card, checkId) {
+  var r = roleEntry(card.name) || {};
+  var e = elixirOf(card);
+  var spell = r.role === "spell";
+  switch (checkId) {
+    case "win":      return r.role === "win-condition";
+    case "air":      return !!r.air && !spell;
+    case "small":    return spell && !isWildcardSpell(card.name) && e <= 3;
+    case "big":      return spell && !isWildcardSpell(card.name) && e >= 4;
+    case "tankkill": return r.role === "tank-killer" || hasTag(r, "tank-killer");
+    case "splash":   return !!r.splash && !spell;
+    case "building": return isDefBuilding(r);
+    case "swarm":    return r.role === "swarm" || hasTag(r, "swarm") || e <= 2;
+    default:         return false;
+  }
+}
+
+function checkWeight(id) {
+  var def = DECK_CHECKS.filter(function(d) { return d.id === id; })[0];
+  return def ? def.weight : 0;
+}
+
 function swapSuggestions(cards, pool) {
   var out = [];
   var inDeck = {};
   cards.forEach(function(c) { inDeck[c.name] = true; });
 
   var checks = deckChecks(cards);
+  var okMap = {};
+  checks.forEach(function(c) { okMap[c.id] = c.ok; });
 
   checks.forEach(function(chk) {
     if (chk.ok || chk.id === "avg" || chk.id === "cycle") return;
 
     var candidates = pool.filter(function(c) {
-      if (inDeck[c.name]) return false;
-      return coversCheck(c, chk.id, cards);
+      return !inDeck[c.name] && contributesTo(c, chk.id);
     });
 
     candidates.sort(function(a, b) {
@@ -630,36 +974,72 @@ function swapSuggestions(cards, pool) {
       if (Math.abs(la - lb) > 0.01) return lb - la;
       return a.name.localeCompare(b.name);
     });
+    if (!candidates.length) return;
 
-    var victims = victimOrder(cards, chk.id);
-    var offered = 0;
-    for (var i = 0; i < candidates.length && offered < 3; i++) {
-      var cand = candidates[i];
-      for (var j = 0; j < victims.length; j++) {
-        var victimName = victims[j];
-        var after = cards.filter(function(c) { return c.name !== victimName; })
-                         .concat([cand]);
-        var afterOk = {};
-        deckChecks(after).forEach(function(a) { afterOk[a.id] = a.ok; });
-        if (!afterOk[chk.id]) continue;               // gap not closed
-        var breaks = checks.some(function(p) {
-          return p.ok && p.id !== chk.id && !afterOk[p.id];
-        });
-        if (breaks) continue;                         // would break a pass
-        out.push({
+    // One card per sacrifice: offering three different cards for the same
+    // victim is the spam the list is capped to avoid.
+    var victims = victimOrder(cards, chk.id).slice(0, VICTIMS_PER_CHECK);
+    for (var j = 0; j < victims.length; j++) {
+      var victimName = victims[j];
+      var best = null;
+      for (var i = 0; i < candidates.length; i++) {
+        var cand = candidates[i];
+        var res = swapBreaks(cards, okMap, chk.id, victimName, cand);
+        var sug = {
           check: chk.id,
           label: chk.label,
           inn: cand.name,
           out: victimName,
           why: chk.detail,
-        });
-        offered++;
-        break;
+          trade: tradeLabel(res.broken),
+          closes: res.closes,
+          broken: res.broken,
+        };
+        if (!best ||
+            (sug.closes && !best.sug.closes) ||
+            (sug.closes === best.sug.closes && res.broken.length < best.sug.broken.length)) {
+          best = { sug: sug, rank: i };
+        }
       }
+      if (best) out.push(best.sug);
     }
   });
 
-  return out;
+  // Honest swaps first, then by the weight of the check they fix: the list
+  // renders top-down, so the biggest gap that can be closed for free has to
+  // be at the top and a trade must never outrank a free fix.
+  var ranked = out.sort(function(a, b) {
+    var fa = a.trade === "keeps everything" ? 0 : 1;
+    var fb = b.trade === "keeps everything" ? 0 : 1;
+    if (fa !== fb) return fa - fb;
+    var wa = checkWeight(a.check), wb = checkWeight(b.check);
+    if (wa !== wb) return wb - wa;
+    if (a.closes !== b.closes) return a.closes ? -1 : 1;
+    if (a.broken.length !== b.broken.length) return a.broken.length - b.broken.length;
+    return (a.check + " " + a.inn + " " + a.out).localeCompare(b.check + " " + b.inn + " " + b.out);
+  });
+
+  // Cap fairly: one suggestion for every fixable gap first (heaviest gap
+  // first) so a quiet low-weight check is never starved by a noisy one, then
+  // a second victim for the heaviest gaps while there is room.
+  var picked = [], taken = {};
+  ranked.forEach(function(s) {
+    if (taken[s.check]) return;
+    taken[s.check] = 1;
+    picked.push(s);
+  });
+  picked = picked.slice(0, TOTAL_SWAP_SUGGESTIONS);
+  taken = {};
+  picked.forEach(function(s) { taken[s.check] = (taken[s.check] || 0) + 1; });
+  ranked.forEach(function(s) {
+    if (picked.length >= TOTAL_SWAP_SUGGESTIONS) return;
+    if (picked.indexOf(s) !== -1) return;
+    if ((taken[s.check] || 0) >= VICTIMS_PER_CHECK) return;
+    taken[s.check] = (taken[s.check] || 0) + 1;
+    picked.push(s);
+  });
+  picked.sort(function(a, b) { return ranked.indexOf(a) - ranked.indexOf(b); });
+  return picked;
 }
 
 // Would adding this card close the given check?
