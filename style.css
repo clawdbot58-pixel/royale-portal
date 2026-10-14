@@ -292,6 +292,16 @@ button i { margin-right: 5px; }
   gap: 0.6rem;
 }
 
+/* The card art is the point of this tab, and inside the 960px container a
+   six-column card can only ever be ~135px wide. On a desktop screen there is
+   unused width on both sides, so give it to the grid — and pin the column
+   count at six (auto-fill would add a seventh on very wide monitors). The art
+   box keeps aspect-ratio 285/420, so it only ever gets bigger, never squashed. */
+@media (min-width: 1100px) {
+  .container { max-width: 1200px; }
+  .card-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+}
+
 /* ===== Card Item ===== */
 .card-item {
   background: var(--surface2);
@@ -404,7 +414,7 @@ button i { margin-right: 5px; }
 
 /* Card body */
 .card-body {
-  padding: 0.45rem 0.5rem 0.5rem;
+  padding: 0.4rem 0.5rem 0.45rem;
 }
 .card-n {
   font-weight: 600;
@@ -548,10 +558,10 @@ button i { margin-right: 5px; }
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 0.5rem;
-  display: grid; grid-template-columns: 36px 1fr auto; gap: 0.5rem; align-items: center;
+  display: grid; grid-template-columns: 48px 1fr auto; gap: 0.5rem; align-items: center;
 }
 .deck-slot img {
-  width: 36px; height: 53px; aspect-ratio: 285 / 420; object-fit: contain;
+  width: 48px; height: 70.74px; aspect-ratio: 285 / 420; object-fit: contain;
   border-radius: var(--radius-sm); background: var(--bg);
 }
 .ds-name { font-size: 0.8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -593,7 +603,7 @@ button i { margin-right: 5px; }
 }
 .pick:hover { border-color: var(--accent2); }
 .pick img {
-  width: 20.36px; height: 30px; aspect-ratio: 285 / 420; object-fit: contain;
+  width: 27.5px; height: 40.53px; aspect-ratio: 285 / 420; object-fit: contain;
   border-radius: 4px; background: var(--bg); flex: none;
 }
 .pick span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -697,14 +707,14 @@ button i { margin-right: 5px; }
 .da-swaps h4 span { font-weight: 400; opacity: 0.7; }
 .da-swaps { display: flex; flex-direction: column; }
 .da-swap {
-  display: grid; grid-template-columns: 30px 1fr auto; align-items: center; gap: 0.55rem;
+  display: grid; grid-template-columns: 32px 1fr auto; align-items: center; gap: 0.55rem;
   background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm);
   padding: 0.35rem 0.5rem; margin-bottom: 0.35rem; cursor: pointer; text-align: left;
   color: var(--text); font-size: 0.76rem;
 }
 .da-swap:hover { border-color: var(--accent2); }
 .da-swap img {
-  width: 23.07px; height: 34px; aspect-ratio: 285 / 420; object-fit: contain;
+  width: 31px; height: 45.68px; aspect-ratio: 285 / 420; object-fit: contain;
   border-radius: 4px; background: var(--surface); flex: none;
 }
 .da-swap span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -720,7 +730,7 @@ button i { margin-right: 5px; }
 .invest-sub { font-size: 0.74rem; color: var(--text-muted); margin-bottom: 0.6rem; }
 .invest-list { display: flex; flex-direction: column; gap: 0.3rem; }
 .invest-row {
-  display: grid; grid-template-columns: 24px minmax(90px, 1.1fr) minmax(70px, 2fr) auto auto;
+  display: grid; grid-template-columns: 32px minmax(90px, 1.1fr) minmax(70px, 2fr) auto auto;
   align-items: center; gap: 0.6rem;
   background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm);
   padding: 0.35rem 0.5rem; cursor: pointer; text-align: left; color: var(--text); font-size: 0.76rem;
@@ -750,7 +760,7 @@ button i { margin-right: 5px; }
 @media (max-width: 600px) {
   .deck-slots { grid-template-columns: repeat(2, 1fr); }
   .tab-btn { font-size: 0.78rem; padding: 0.45rem 0.7rem; }
-  .invest-row { grid-template-columns: 20px 1fr auto; }
+  .invest-row { grid-template-columns: 27px 1fr auto; }
   .inv-bar, .inv-cost { display: none; }
   .da-metrics { gap: 1rem; }
   .da-val { font-size: 1rem; }
@@ -789,7 +799,7 @@ button i { margin-right: 5px; }
 .bat-cards, .bat-faced { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 0.3rem 1rem; }
 .bat-card, .bat-faced-row { display: flex; align-items: center; gap: 0.5rem; font-size: 0.78rem; padding: 0.25rem 0.25rem; }
 .bat-card img {
-  width: 20.36px; height: 30px; aspect-ratio: 285 / 420; object-fit: contain;
+  width: 27.5px; height: 40.53px; aspect-ratio: 285 / 420; object-fit: contain;
   border-radius: 4px; background: var(--bg); flex: none;
 }
 .bc-name, .bf-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 0 1 auto; }
@@ -835,7 +845,7 @@ button i { margin-right: 5px; }
   padding: 0.25rem 0.5rem; font-size: 0.74rem;
 }
 .ds-cycle-card img {
-  width: 17.64px; height: 26px; aspect-ratio: 285 / 420; object-fit: contain;
+  width: 23.8px; height: 35.07px; aspect-ratio: 285 / 420; object-fit: contain;
   border-radius: 3px; background: var(--bg); flex: none;
 }
 .ds-cycle-card b { color: var(--accent); font-weight: 700; }
@@ -1067,8 +1077,8 @@ a:focus-visible, .btn-primary:focus-visible, .ds-remove:focus-visible,
   .invest-row img { width: 100%; height: auto; }
 }
 @media (max-width: 480px) {
-  .deck-slot { grid-template-columns: 30px 1fr auto; }
-  .deck-slot img { width: 29.86px; height: 44px; }
+  .deck-slot { grid-template-columns: 36px 1fr auto; }
+  .deck-slot img { width: 36px; height: 53.05px; }
 }
 
 /* ==========================================================================
@@ -1324,11 +1334,11 @@ h1, h2, h3, h4 { letter-spacing: -0.01em; }
   /* 36px + 1fr + 28px removed button left the name ~70px wide at 390px.
      The name now spans under the image so it never truncates. */
   .deck-slot {
-    grid-template-columns: 30px minmax(0, 1fr) 28px;
+    grid-template-columns: 36px minmax(0, 1fr) 28px;
     grid-template-areas: "img name rm" "slot slot slot" "badges badges badges" "elixir elixir elixir";
     row-gap: 0.4rem;
   }
-  .deck-slot img { grid-area: img; width: 29.86px; height: 44px; }
+  .deck-slot img { grid-area: img; width: 36px; height: 53.05px; }
   .ds-info { grid-area: name; }
   .ds-remove { grid-area: rm; }
   .ds-slot { grid-area: slot; grid-column: 1 / -1; }
@@ -1489,7 +1499,7 @@ h1, h2, h3, h4 { letter-spacing: -0.01em; }
 }
 .dv-swap:hover { border-color: var(--accent2); background: rgba(91, 127, 255, 0.05); }
 .dv-swap img {
-  width: 23.07px; height: 34px; aspect-ratio: 285 / 420; object-fit: contain;
+  width: 31px; height: 45.68px; aspect-ratio: 285 / 420; object-fit: contain;
   border-radius: 4px; background: var(--surface); flex: none;
 }
 .dv-swap > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1614,7 +1624,7 @@ h1, h2, h3, h4 { letter-spacing: -0.01em; }
      mid-word ("Skeleton / s"). */
   .ds-badge.b-role { display: none; }
   .deck-slot {
-    grid-template-columns: 30px minmax(0, 1fr) 28px;
+    grid-template-columns: 36px minmax(0, 1fr) 28px;
     grid-template-areas: "img img rm" "name name name" "slot slot slot"
                          "badges badges badges" "elixir elixir elixir";
   }
