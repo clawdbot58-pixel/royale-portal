@@ -629,6 +629,17 @@ button i { margin-right: 5px; }
 .tier-B { background: rgba(139,141,168,0.18); color: var(--text-muted); }
 .sugg-name { font-size: 0.92rem; flex: 1; }
 .sugg-score { font-size: 0.85rem; color: var(--success); font-variant-numeric: tabular-nums; }
+/* Our composition grade for the list — same analyzer the deck tab runs. */
+.sugg-grade {
+  font-size: 0.68rem; font-weight: 700; letter-spacing: 0.02em;
+  border-radius: 4px; padding: 1px 5px; border: 1px solid var(--border);
+  font-variant-numeric: tabular-nums; cursor: help;
+}
+.sugg-grade.g-s { color: var(--success); border-color: rgba(61,214,140,0.45); background: rgba(61,214,140,0.1); }
+.sugg-grade.g-a { color: #9ed87a; border-color: rgba(158,216,122,0.4); background: rgba(158,216,122,0.08); }
+.sugg-grade.g-b { color: var(--text); border-color: var(--border); background: var(--surface); }
+.sugg-grade.g-c { color: var(--warning); border-color: rgba(240,164,63,0.4); background: rgba(240,164,63,0.08); }
+.sugg-grade.g-d, .sugg-grade.g-e { color: var(--accent3); border-color: rgba(224,74,90,0.45); background: rgba(224,74,90,0.08); }
 .sugg-tags { display: flex; gap: 0.35rem; flex-wrap: wrap; margin-top: 0.4rem; }
 .tag { font-size: 0.68rem; color: var(--text-muted); background: var(--bg); border-radius: var(--radius-sm); padding: 2px 6px; }
 .sugg-stats { display: flex; gap: 0.9rem; flex-wrap: wrap; margin-top: 0.5rem; font-size: 0.78rem; color: var(--text-muted); }
@@ -694,6 +705,10 @@ button i { margin-right: 5px; }
 .da-check i { font-size: 0.8rem; }
 .da-check.ok i { color: var(--success); }
 .da-check.no  i { color: var(--accent3); }
+/* Family-exempt: passing, but the deck is not being held to this check —
+   dashed border so it never reads as earned coverage. */
+.da-check.soft { border-style: dashed; opacity: 0.72; }
+.da-check.soft i { color: var(--text-muted); }
 .da-label { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .da-need { font-size: 0.66rem; color: var(--text-muted); background: var(--surface); border-radius: 4px; padding: 1px 5px; }
 .da-detail {

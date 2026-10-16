@@ -1098,7 +1098,7 @@ function renderDeckVerdict(cards, an) {
 
   if (best) {
     html += '<button class="dv-swap" data-in="' + best.inn + '" data-out="' + best.out + '"' +
-      ' title="Swap ' + best.inn + ' in for ' + best.out + ' — fixes ' + best.label + '">' +
+      ' title="Swap ' + best.inn + " in for " + best.out + " — " + swapFixVerb(best) + best.label + '">' +
       '<img src="' + proxyImg((allCardsDb[best.inn] || {}).iconUrls ? allCardsDb[best.inn].iconUrls.medium : "", best.inn) + '" alt="" loading="lazy" />' +
       "<span><b>Best swap</b> " + best.inn + " for " + best.out + "</span>" +
       '<em>' + swapTradeBadge(best) + "</em>" +
@@ -1134,6 +1134,13 @@ function swapTradeBadge(s) {
   return '<span class="da-trade' + (free ? " free" : " cost") + '" title="' +
     (free ? "This swap costs the deck nothing" : "This swap gives up " + cost.replace(/^costs\s+/i, "")) +
     '">' + (free ? "free swap" : cost) + "</span>";
+}
+
+// "fixes" when the swap fully closes the gap; "helps with" when it only
+// moves toward it (the second anti-air answer). Never claim more than
+// swapSuggestions() proved.
+function swapFixVerb(s) {
+  return s && s.closes ? "fixes " : "helps with ";
 }
 
 // ---- Deck archetype ----
@@ -1356,7 +1363,7 @@ function renderDeckAnalysis(an) {
   "</div>";
 
   html += '<div class="da-grid">' + an.checks.map(function(c) {
-    return '<div class="da-check ' + (c.ok ? "ok" : "no") + '" title="' + c.detail + '">' +
+    return '<div class="da-check ' + (c.ok ? "ok" : "no") + (c.soft ? " soft" : "") + '" title="' + c.detail + '">' +
       '<i class="fa-solid ' + (c.ok ? "fa-circle-check" : "fa-circle-xmark") + '" aria-hidden="true"></i>' +
       '<span class="da-label">' + c.label + "</span>" +
       '<span class="da-need">' + c.need + "</span>" +
@@ -1374,11 +1381,11 @@ function renderDeckAnalysis(an) {
       html += '<div class="da-swaps"><h4>Swap ideas <span>tap to apply</span></h4>' +
         swaps.map(function(s) {
           return '<button class="da-swap" data-in="' + s.inn + '" data-out="' + s.out + '"' +
-            ' title="Swap ' + s.inn + ' in for ' + s.out + ' — fixes ' + s.label + '">' +
+            ' title="Swap ' + s.inn + " in for " + s.out + " — " + swapFixVerb(s) + s.label + '">' +
             '<img src="' + proxyImg((allCardsDb[s.inn] || {}).iconUrls ? allCardsDb[s.inn].iconUrls.medium : "", s.inn) + '" alt="" loading="lazy" />' +
             '<span class="da-swap-body">' +
               '<span class="da-swap-t"><strong>' + s.inn + "</strong> for <strong>" + s.out + "</strong></span>" +
-              '<span class="da-swap-m"><em>fixes ' + s.label + "</em>" + swapTradeBadge(s) + "</span>" +
+              '<span class="da-swap-m"><em>' + swapFixVerb(s) + s.label + "</em>" + swapTradeBadge(s) + "</span>" +
             "</span>" +
           "</button>";
         }).join("") +
@@ -1620,6 +1627,24 @@ function renderSuggestions() {
       '<span style="color:var(--accent);font-size:0.7rem;text-transform:uppercase;letter-spacing:0.03em">meta</span>' +
       '<span style="color:var(--text)">' + a.metaWr + "% · " + a.metaGames + " games</span></span>";
   }
+  // Composition grade of the list itself — the same analyzer the deck tab
+  // runs, so what the card promises and what the builder shows can never
+  // disagree. Levels never matter here, so unowned cards grade identically.
+  function qualityChip(a) {
+    if (typeof analyzeDeck !== "function" || typeof deckArchetype !== "function" || typeof CARD_ROLES === "undefined") return "";
+    var cards = a.cards.map(function(n) {
+      var r = CARD_ROLES[n] || {};
+      return { name: n, elixirCost: typeof r.cycle === "number" ? r.cycle : 4, level: 1, maxLevel: 16, owned: true, count: 0, type: "troop" };
+    });
+    var an, fam;
+    try {
+      an = analyzeDeck(cards, a.tower || "Tower Princess");
+      fam = (deckArchetype(cards) || {}).family || "misc";
+    } catch (e) { return ""; }
+    return '<span class="sugg-grade g-' + an.grade.toLowerCase() + '" title="Deck grade — ' + an.score + "/100, " + fam +
+      " family. Composition only; the same analyzer grades this list when you load it into the builder.\">" +
+      an.grade + " · " + an.score + "</span>";
+  }
   // A deck whose key (win) card is unowned must be flagged, not buried.
   function keyFlag(a) {
     if (a.key && a.missing.indexOf(a.key) !== -1) {
@@ -1698,6 +1723,7 @@ function renderSuggestions() {
         (a.evoUnlocked ? stat("evos", a.evoUnlocked) : "") +
         (a.heroCapable ? stat("heroes", a.heroCapable) : "") +
         (a.metaWr != null ? metaChip(a) : "") +
+        qualityChip(a) +
         (a.modes.length > 1 ? stat("modes", a.modes.join(" · ")) : "") +
       "</div>" +
       '<div class="sugg-cards">' + a.cards.map(function(n) {
@@ -2033,7 +2059,12 @@ suggestionsEl.addEventListener("click", function(e) {
 if (scoreTableBody && typeof DECK_CHECKS !== "undefined") {
   scoreTableBody.innerHTML = DECK_CHECKS.map(function(c) {
     return "<tr><td>" + c.label + "</td><td>" + c.need + "</td><td>" + c.weight + "</td></tr>";
-  }).join("") + '<tr class="total"><td><strong>Total</strong></td><td></td><td><strong>100</strong></td></tr>';
+  }).join("") + '<tr class="total"><td><strong>Total</strong></td><td></td><td><strong>100</strong></td></tr>' +
+    '<tr><td colspan="3" style="color:var(--text-muted);font-weight:400;font-size:0.72rem;padding-top:0.4rem">' +
+    "Heavy families (beatdown, bridge-spam, siege, spell-cycle) are not held to the cheap-deck checks — " +
+    "average elixir, fast cycle, swarm defence, defensive building, and (for spell-cycle) a troop win condition. " +
+    "Those checks pass with a family note instead; answer coverage stays required for every deck." +
+    "</td></tr>";
 }
 
 tabBar.addEventListener("click", function(e) {

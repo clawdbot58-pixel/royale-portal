@@ -74,7 +74,10 @@ function deckCoverage(cards) {
     var e = elixirOf(c);
     cov.elixir += e;
     if (e <= 2) cov.cheap.push(c);
-    if (r.role === "spell") {
+    // A hybrid card (Goblin Barrel: role win-condition, tagged "spell")
+    // counts in both lists — it takes towers AND fills the small-spell slot.
+    if (r.role === "win-condition") cov.win.push(c);
+    if (r.role === "spell" || hasTag(r, "spell")) {
       cov.spells.push(c);
       // Mirror is a spell but never a reliable answer: it duplicates whatever
       // was played last, so it counts for neither the small nor the big slot.
@@ -86,7 +89,6 @@ function deckCoverage(cards) {
       // the grade must not tell. Durable answers only (see scoreArchetype).
       return;                        // spells are not troops/buildings
     }
-    if (r.role === "win-condition") cov.win.push(c);
     if (r.air) cov.air.push(c);
     if (r.splash) cov.splash.push(c);
     if (r.role === "tank-killer" || hasTag(r, "tank-killer")) cov.tankkill.push(c);
@@ -113,14 +115,50 @@ function names(list) {
 }
 
 // Evaluate every coverage check against a deck (works on partial decks too).
-function deckChecks(cards) {
+// Which checks a family is not held to. These measure the hygiene of cheap
+// decks — elixir budget, cycle speed, a parked building, a stack of 2⚡
+// cards — and a proven heavy list wins on push quality instead. Across the
+// META_DECKS library, 50%+ of beatdown, siege and bridge-spam lists fail
+// them and still post 53%+ meta win rates, so grading a Golem deck as
+// mediocre for not being a cycle deck was the analyzer being wrong, not the
+// deck. Soft checks still render (the measured value stays in `detail`, plus
+// a family note) but count as passing. Answer coverage — win condition,
+// anti-air, spells, tank killer, splash — stays hard for every family:
+// those are holes, not style. Families absent here (bait, cycle, control,
+// misc) are held to every check.
+var FAMILY_SOFT_CHECKS = {
+  beatdown: { avg: 1, cycle: 1, swarm: 1, building: 1 },
+  "bridge-spam": { cycle: 1, swarm: 1, building: 1, big: 1 },
+  siege: { cycle: 1, swarm: 1, building: 1 },
+  "spell-cycle": { win: 1, swarm: 1 },
+};
+
+// The family a deck is graded under. Evaluations of "what would this swap
+// break" must use the family of the deck being edited — never the family the
+// remaining 7 cards would reclassify as once the victim leaves (losing your
+// only win condition must not rebrand the deck as spell-cycle and forgive
+// the loss).
+function deckFamilyOf(cards) {
+  if (typeof deckArchetype === "function") {
+    try { return (deckArchetype(cards || []) || {}).family || "misc"; } catch (e) { return "misc"; }
+  }
+  return "misc";
+}
+
+// deckChecks grades a deck against what a strong deck of ITS family looks
+// like, not against an idealised all-rounder: the family comes from
+// deckArchetype() (composition only, no META_DECKS lookup). Callers may
+// pin the family with `softFamily` when grading a hypothetical variant.
+function deckChecks(cards, softFamily) {
   var cov = deckCoverage(cards);
   var avg = cov.count ? cov.elixir / cov.count : 0;
   var cyc = cycleCost(cards);
   var byId = {};
+  var fam = softFamily || deckFamilyOf(cards);
+  var soft = FAMILY_SOFT_CHECKS[fam] || {};
 
   DECK_CHECKS.forEach(function(def) {
-    var ok = false, detail = "";
+    var ok = false, detail = "", rescued = false;
     switch (def.id) {
       case "win":
         ok = cov.win.length >= 1;
@@ -164,10 +202,18 @@ function deckChecks(cards) {
         detail = cyc != null ? cyc + "⚡ for 4 cards" : "deck incomplete";
         break;
     }
+    // A family-exempt check that is failing here is not a hole — the deck is
+    // not being held to it. It still renders with the measured value.
+    if (!ok && soft[def.id]) {
+      ok = true;
+      rescued = true;
+      detail = detail + " · not required for " + fam;
+    }
     var chk = {
       id: def.id, label: def.label, need: def.need, weight: def.weight,
       ok: ok, detail: detail,
     };
+    if (rescued) chk.soft = true;
     byId[def.id] = chk;
   });
 
@@ -405,6 +451,12 @@ function deckArchetype(cards) {
   var walkWins = wins.filter(function(c) {
     return cost(c) >= 4 && !tagged(c, "building-target");
   });
+  // A beatdown-tagged win condition is walked in even when it targets
+  // buildings and costs little (Elixir Golem is 3⚡); Balloon and Sparky are
+  // tag-mates but ride their own structures.
+  var pushWins = wins.filter(function(c) {
+    return tagged(c, "beatdown") && c.name !== "Balloon" && c.name !== "Sparky";
+  });
   // Cards that exist to walk in front of / behind the win condition.
   var support = cards.filter(function(c) {
     var r = role(c);
@@ -445,9 +497,9 @@ function deckArchetype(cards) {
     family = "bait"; main = baitWins.slice().sort(desc)[0];
 } else if (siegeUnitDeck) {
     family = "siege"; main = siegeUnit.slice().sort(desc)[0];
-  } else if ((heavyWins.length || walkWins.length) && support.length) {
+  } else if ((heavyWins.length || walkWins.length || pushWins.length) && support.length) {
     family = "beatdown";
-    main = (heavyWins.concat(walkWins).slice().sort(desc))[0];
+    main = (heavyWins.concat(walkWins, pushWins).slice().sort(desc))[0];
   } else if (buildings.length && tankkill.length && cov.spells.length && (cyc == null || cyc > 9)) {
     family = "control"; main = wins.slice().sort(desc)[0] || null;
   } else if ((btWins.length >= 2 || (wins.length >= 2 && btWins.length >= 1)) && avg <= 4.2) {
@@ -913,15 +965,18 @@ function tradeLabel(brokenIds) {
   }).join(", ");
 }
 
-// Which passing checks a swap to `victimName` for `cand` would break.
-function swapBreaks(cards, okMap, chkId, victimName, cand) {
+// Which passing checks a swap to `victimName` for `cand` would break, graded
+// under the ORIGINAL deck's family (see deckFamilyOf).
+function swapBreaks(cards, okMap, chkId, victimName, cand, fam) {
   var after = cards.filter(function(c) { return c.name !== victimName; }).concat([cand]);
   var afterOk = {};
-  deckChecks(after).forEach(function(a) { afterOk[a.id] = a.ok; });
+  deckChecks(after, fam).forEach(function(a) { afterOk[a.id] = a.ok; });
   var broken = DECK_CHECKS.filter(function(d) {
     return okMap[d.id] && d.id !== chkId && !afterOk[d.id];
   }).map(function(d) { return d.id; });
-  return { broken: broken, closes: !!afterOk[chkId] };
+  return { broken: broken, closes: !!afterOk[chkId], progress: chkId === "air"
+    ? deckCoverage(after).air.length > deckCoverage(cards).air.length
+    : !!afterOk[chkId] };
 }
 
 // Does this single card count toward the check at all? A card that closes the
@@ -955,7 +1010,10 @@ function swapSuggestions(cards, pool) {
   var inDeck = {};
   cards.forEach(function(c) { inDeck[c.name] = true; });
 
-  var checks = deckChecks(cards);
+  // Every "what would this swap break" question below is graded under this
+  // deck's family, not whatever the 7-card remainder would reclassify as.
+  var fam = deckFamilyOf(cards);
+  var checks = deckChecks(cards, fam);
   var okMap = {};
   checks.forEach(function(c) { okMap[c.id] = c.ok; });
 
@@ -978,13 +1036,18 @@ function swapSuggestions(cards, pool) {
 
     // One card per sacrifice: offering three different cards for the same
     // victim is the spam the list is capped to avoid.
-    var victims = victimOrder(cards, chk.id).slice(0, VICTIMS_PER_CHECK);
+    var victims = victimOrder(cards, chk.id, fam).slice(0, VICTIMS_PER_CHECK);
     for (var j = 0; j < victims.length; j++) {
       var victimName = victims[j];
       var best = null;
       for (var i = 0; i < candidates.length; i++) {
         var cand = candidates[i];
-        var res = swapBreaks(cards, okMap, chk.id, victimName, cand);
+        var res = swapBreaks(cards, okMap, chk.id, victimName, cand, fam);
+        // A swap must either close the gap or at least move its counter
+        // (anti-air needs two answers, so the first one is progress). A swap
+        // that changes nothing — swapping the only air answer for another —
+        // is noise the list should never offer.
+        if (!res.closes && !res.progress) continue;
         var sug = {
           check: chk.id,
           label: chk.label,
@@ -1051,10 +1114,10 @@ function coversCheck(card, checkId, cards) {
 
 // Deck cards to sacrifice, least valuable first: a card goes earlier the
 // fewer passing checks its removal would break, then by lower level.
-function victimOrder(cards, checkId) {
+function victimOrder(cards, checkId, fam) {
   return cards.slice().sort(function(a, b) {
-    var ra = redundancy(a, cards, checkId);
-    var rb = redundancy(b, cards, checkId);
+    var ra = redundancy(a, cards, checkId, fam);
+    var rb = redundancy(b, cards, checkId, fam);
     if (ra !== rb) return rb - ra;
     var la = a.maxLevel ? a.level / a.maxLevel : 0;
     var lb = b.maxLevel ? b.level / b.maxLevel : 0;
@@ -1066,11 +1129,11 @@ function victimOrder(cards, checkId) {
 // How safe is it to remove this card? +1 for every check that currently
 // passes (other than the gap being filled) and still passes without it —
 // i.e. the removal breaks fewer of the deck's passing checks.
-function redundancy(card, cards, gapId) {
+function redundancy(card, cards, gapId, fam) {
   var others = cards.filter(function(c) { return c.name !== card.name; });
   var kept = {}, without = {};
-  deckChecks(cards).forEach(function(chk) { kept[chk.id] = chk.ok; });
-  deckChecks(others).forEach(function(chk) { without[chk.id] = chk.ok; });
+  deckChecks(cards, fam).forEach(function(chk) { kept[chk.id] = chk.ok; });
+  deckChecks(others, fam).forEach(function(chk) { without[chk.id] = chk.ok; });
 
   var count = 0;
   DECK_CHECKS.forEach(function(d) {

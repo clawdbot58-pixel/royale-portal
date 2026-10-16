@@ -101,7 +101,9 @@ var CARD_ROLES = {
   "X-Bow":           { role: "win-condition", air: false,  splash: false, cycle: 6, tags: ["win-condition", "siege", "xbow"] },
   "Goblin Drill":    { role: "win-condition", air: false, splash: false, cycle: 4, tags: ["win-condition", "building-target", "log-bait"] },
   "Rage":            { role: "spell",         air: true,  splash: false, cycle: 2, tags: ["spell"] },
-  "Goblin Barrel":   { role: "win-condition", air: false, splash: false, cycle: 3, tags: ["win-condition", "log-bait", "building-target"] },
+  // Hybrid: role win-condition (it takes towers) AND tagged "spell" (it is a
+  // 3⚡ spell, so it fills the small-spell slot too — deckCoverage reads both).
+  "Goblin Barrel":   { role: "win-condition", air: false, splash: false, cycle: 3, tags: ["win-condition", "log-bait", "building-target", "spell"] },
   "Freeze":          { role: "spell",         air: true,  splash: false, cycle: 4, tags: ["spell", "control"] },
   "Mirror":          { role: "spell",         air: false,  splash: false, cycle: 7, tags: ["spell"] },
   "Lightning":       { role: "spell",         air: true,  splash: true,  cycle: 6, tags: ["spell", "control"] },
