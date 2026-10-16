@@ -35,7 +35,7 @@ card-data.js       → CARDS_* arrays, GOLD_PER_LEVEL, MAX_LEVELS, START_LEVELS,
 card-roles.js      → CARD_ROLES — every card + tower troop mapped to role/tags/air/splash/cycle
 meta-decks.js       → META_DECKS — validated archetypes with slot assignments
 deck-engine.js      → Pure deck logic (no DOM, no fetch): cardFlags, assignSlots, deckViolations, scoreArchetype, rankArchetypes, deckUpgradePlan
-deck-analysis.js    → Pure deck quality logic: DECK_CHECKS, analyzeDeck, autofillDeck, swapSuggestions, upgradeValueList
+deck-analysis.js    → Pure deck quality logic: DECK_CHECKS, analyzeDeck, deckArchetype, autofillDeck, swapSuggestions, upgradeValueList
 app.js              → All UI logic depends on globals from above
 ```
 
@@ -128,7 +128,8 @@ Tabs: `collection`, `deck`, `suggestions`, `battles`, `rules` — each maps to `
 | `deckUpgradePlan(result, index, cardsToMax, goldToMax)` | deck-engine.js | What to upgrade to make a deck work |
 | `analyzeDeck(cards, tower)` | deck-analysis.js | Metrics + 10 weighted coverage checks → score, grade S–E |
 | `autofillDeck(pool)` | deck-analysis.js | Greedy legal 8-card build from the owned cards |
-| `swapSuggestions(cards, pool)` | deck-analysis.js | Owned card + deck victim for each failed coverage check |
+| `swapSuggestions(cards, pool)` | deck-analysis.js | Owned card + deck victim for each failed coverage check, each carrying `trade`/`closes`/`broken` |
+| `deckArchetype(cards)` | deck-analysis.js | Composition-only family classification → `{family, label, why, build[3..5]}` — reads defensively in the UI |
 | `upgradeValueList(index, limit)` | deck-analysis.js | Which upgrade counts toward the most best-fit decks |
 | `sanitizeTag(tag)` | app.js | Strips non-alnum, uppercases, prepends `#` |
 
@@ -140,7 +141,13 @@ Deck builder rows show: card image, name with ⚡ (evolution active) / ★ (hero
 
 Below the rule check, the deck tab renders the coverage analysis: five metrics (avg elixir, 4-card cycle, grade + score, attack/defence split, full 8-card cycle), then one tile per `DECK_CHECKS` entry (id, label, need, weight, ok, detail). **The score is the sum of the weights of the passing checks** — `DECK_CHECKS` weights sum to 100, so `analyzeDeck()` returns that sum directly; grades are S ≥90, A ≥80, B ≥70, C ≥60, D ≥45, else E. Checks measure composition only — legality stays in `deckViolations()` / `slotViolations()`.
 
-When checks fail the panel lists **swap ideas**: `swapSuggestions()` finds the owned card that would close the gap and the least load-bearing deck card to drop (`redundancy()` counts the checks a card helps satisfy that would still pass without it). Clicking a swap applies it in place. **Auto-fill** runs `autofillDeck()` — greedy over `deckProgress()` (each check's weight × how far the deck is toward passing it, so a "needs 2 anti-air" gap is worth building toward before it closes), then level progress / evolution / special rarity, with average elixir and special-slot capacity (verified by bipartite matching in `fitsSpecialSlots()`) as hard constraints. `deckProgress()` only steers the filler — the displayed score stays the binary sum of passing weights.
+When checks fail the panel lists **swap ideas**: `swapSuggestions()` finds the owned card that would close the gap and the least load-bearing deck card to drop (`redundancy()` counts the checks a card helps satisfy that would still pass without it). Clicking a swap applies it in place. **A gap is never silent** — candidates gate on `contributesTo()`, so every failing check with a covering card in the pool gets a suggestion, and each one carries an additive `trade` string (`"keeps everything"` or `"costs splash damage, anti-air"`, built from `DECK_CHECKS` labels) plus `closes`/`broken`. The list is capped at **2 victims per check / 6 total**, free swaps ranked first, one suggestion per gap before any repeats; the deck tab shows a `+ N more` line for the rest, and `swapTradeBadge()` renders the trade as a green `free swap` or orange `costs …` pill (shrinks + ellipsizes on narrow widths — worst case trade is 150+ chars).
+
+The deck identity block headlines with `deckArchetype()` — the archetype of the deck **you are building**, classified from its own composition (no `META_DECKS` lookup): `spell-cycle / siege / bait / beatdown / control / bridge-spam / cycle / misc`, each with an evidence line and 3–5 build steps naming only in-deck cards. The UI reads it through `deckArchetypeSafe()` (guards `typeof` + try/catch — falls back to the plan/verdict block if absent); the `META_DECKS` "closest archetype" line is demoted below it.
+
+**Mirror is a wildcard spell, never a spell answer.** The API returns no `elixirCost` for it, so `elixirOf()` special-cases it to `MIRROR_ELIXIR = 1.5` (the game's own fixed value for deck averages); it is excluded from both the small- and big-spell coverage checks, still counts in `spells`, and `autofillDeck()`'s spell repair ranks it last.
+
+**Auto-fill** runs `autofillDeck()` — greedy over `deckProgress()` (each check's weight × how far the deck is toward passing it, so a "needs 2 anti-air" gap is worth building toward before it closes), then level progress / evolution / special rarity, with average elixir and special-slot capacity (verified by bipartite matching in `fitsSpecialSlots()`) as hard constraints. `deckProgress()` only steers the filler — the displayed score stays the binary sum of passing weights.
 
 The URL hash always encodes the view: `#tag=TAG&deck=Name|slot,Name&tower=Tower` (slot omitted when `normal`). `writeHash()` runs at the end of `renderDeckBuilder()`; `readHash()` is consumed once at boot through `pendingShared` so a shared deck is never re-applied when the user switches tags. **Copy link** writes that URL to the clipboard.
 

@@ -1101,7 +1101,7 @@ function renderDeckVerdict(cards, an) {
       ' title="Swap ' + best.inn + ' in for ' + best.out + ' — fixes ' + best.label + '">' +
       '<img src="' + proxyImg((allCardsDb[best.inn] || {}).iconUrls ? allCardsDb[best.inn].iconUrls.medium : "", best.inn) + '" alt="" loading="lazy" />' +
       "<span><b>Best swap</b> " + best.inn + " for " + best.out + "</span>" +
-      '<em>fixes ' + best.label + "</em>" +
+      '<em>' + swapTradeBadge(best) + "</em>" +
     "</button>";
   }
 
@@ -1112,6 +1112,48 @@ deckVerdictEl && deckVerdictEl.addEventListener("click", function(e) {
   var btn = e.target.closest(".dv-swap");
   if (btn) swapInDeck(btn.dataset.in, btn.dataset.out);
 });
+
+// ---- Swap trade ----
+// swapSuggestions() returns a `trade` string naming what a swap costs:
+// "keeps everything" when it breaks no passing check, otherwise "costs <the
+// checks it gives up>". Surfacing it stops the list reading as a set of free
+// wins. An absent/unreadable trade is treated as free — the generator refuses
+// any swap that breaks a passing check, so "no news" is the safe reading.
+function swapTradeCosts(s) {
+  var t = s && s.trade;
+  if (!t) return "";
+  if (Object.prototype.toString.call(t) === "[object Array]") {
+    return t.filter(Boolean).length ? "costs " + t.filter(Boolean).map(String).join(", ") : "";
+  }
+  return String(t);
+}
+
+function swapTradeBadge(s) {
+  var cost = swapTradeCosts(s);
+  var free = !cost || /keep|nothing|free/i.test(cost);
+  return '<span class="da-trade' + (free ? " free" : " cost") + '" title="' +
+    (free ? "This swap costs the deck nothing" : "This swap gives up " + cost.replace(/^costs\s+/i, "")) +
+    '">' + (free ? "free swap" : cost) + "</span>";
+}
+
+// ---- Deck archetype ----
+// deckArchetype() classifies the deck you are actually building (family, label,
+// evidence line, and an ordered build list). It lives in deck-analysis.js and
+// is read defensively: if it is not there yet, or it throws on a partial deck,
+// the identity block simply falls back to the plan/verdict it already had.
+function deckArchetypeSafe(cards) {
+  if (typeof deckArchetype !== "function") return null;
+  var a;
+  try { a = deckArchetype(cards); } catch (e) { return null; }
+  if (!a || !a.label) return null;
+  return {
+    family: a.family || "misc",
+    label: String(a.label),
+    why: a.why ? String(a.why) : "",
+    build: (Object.prototype.toString.call(a.build) === "[object Array]" ? a.build : [])
+            .filter(Boolean).map(String),
+  };
+}
 
 // --------------- Deck statistics ---------------
 // Pure read-out of the deck's elixir maths. Ability costs are deliberately
@@ -1146,7 +1188,14 @@ function deckStats(cards) {
 
 function renderDeckStats(cards) {
   if (!deckStatsEl) return;
-  if (!cards.length) { deckStatsEl.innerHTML = ""; return; }
+  if (!cards.length) {
+    // An empty deck has no elixir maths to show, so say that plainly rather
+    // than leaving a header with nothing under it.
+    deckStatsEl.innerHTML = '<div class="empty-state"><strong>No cards in the deck yet.</strong><br />' +
+      "Add cards below, or press <strong>Auto-fill</strong> — the elixir maths, the archetype read-out " +
+      "and the coverage check all appear once the deck has cards.</div>";
+    return;
+  }
   var s = deckStats(cards);
   var cheapestSpells = s.spells.slice().sort(function(a, b) { return a.cost - b.cost; });
 
@@ -1251,8 +1300,28 @@ function renderDeckStats(cards) {
   });
 
   var plan = (typeof deckStrategy !== "undefined" && cards.length >= 8) ? deckStrategy(cards) : "";
+  var arch = deckArchetypeSafe(cards);
+
+  // The archetype of the deck you are building is the headline of this block;
+  // the META_DECKS comparison is demoted to a secondary line below it.
+  var archHtml = arch
+    ? '<div class="ds-arch">' +
+        '<div class="ds-arch-head">' +
+          '<span class="ds-arch-label">' + arch.label + "</span>" +
+          '<span class="ds-arch-family">' + arch.family + "</span>" +
+        "</div>" +
+        (arch.why ? '<div class="ds-arch-why">' + arch.why + "</div>" : "") +
+        (arch.build.length
+          ? '<div class="ds-arch-build"><h5>How to build it</h5><ol>' + arch.build.map(function(step) {
+              return "<li>" + step + "</li>";
+            }).join("") + "</ol></div>"
+          : "") +
+      "</div>"
+    : "";
+
   html += '<div class="ds-identity">' +
     '<h4>Deck identity</h4>' +
+    archHtml +
     (plan ? '<div class="ds-plan"><b>Your plan</b> — ' + plan + "</div>" : "") +
     '<div class="ds-verdict ' + verdictCls + '">' + verdict + "</div>" +
     (best && best.overlap >= 4
@@ -1297,16 +1366,27 @@ function renderDeckAnalysis(an) {
 
   if (an.missing.length) {
     var pool = mergedCards.filter(function(c) { return c.owned && c.type !== "tower"; });
-    var swaps = swapSuggestions(cards, pool).slice(0, 4);
+    var allSwaps = swapSuggestions(cards, pool);
+    // One line per failing check is already plenty; the rest are a count so
+    // the panel cannot flood when the deck is far from complete.
+    var swaps = allSwaps.slice(0, 6);
     if (swaps.length) {
       html += '<div class="da-swaps"><h4>Swap ideas <span>tap to apply</span></h4>' +
         swaps.map(function(s) {
-          return '<button class="da-swap" data-in="' + s.inn + '" data-out="' + s.out + '">' +
+          return '<button class="da-swap" data-in="' + s.inn + '" data-out="' + s.out + '"' +
+            ' title="Swap ' + s.inn + ' in for ' + s.out + ' — fixes ' + s.label + '">' +
             '<img src="' + proxyImg((allCardsDb[s.inn] || {}).iconUrls ? allCardsDb[s.inn].iconUrls.medium : "", s.inn) + '" alt="" loading="lazy" />' +
-            "<span><strong>" + s.inn + "</strong> for <strong>" + s.out + "</strong></span>" +
-            '<em>fixes ' + s.label + "</em>" +
+            '<span class="da-swap-body">' +
+              '<span class="da-swap-t"><strong>' + s.inn + "</strong> for <strong>" + s.out + "</strong></span>" +
+              '<span class="da-swap-m"><em>fixes ' + s.label + "</em>" + swapTradeBadge(s) + "</span>" +
+            "</span>" +
           "</button>";
-        }).join("") + "</div>";
+        }).join("") +
+        (allSwaps.length > swaps.length
+          ? '<div class="da-swaps-more">+ ' + (allSwaps.length - swaps.length) + " more swap" +
+            (allSwaps.length - swaps.length === 1 ? "" : "s") + " available — apply these first, then re-check.</div>"
+          : "") +
+      "</div>";
     }
   }
 
